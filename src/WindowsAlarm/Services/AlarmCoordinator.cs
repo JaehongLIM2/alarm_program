@@ -129,6 +129,9 @@ public sealed class AlarmCoordinator : IDisposable
 
     private void StartPlayback(AlarmSettings settings)
     {
+        UpdateKeepAwake();
+        try { _power.WakeDisplay(); _store.Log("Alarm display wake request completed; lock state unchanged"); }
+        catch (Exception ex) { _store.Log("Alarm display wake request failed; continuing audio", ex); }
         _ = StartPlaybackSafeAsync(settings);
         AlarmStarted?.Invoke();
     }

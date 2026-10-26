@@ -16,4 +16,5 @@ public interface IPowerService
     void Hibernate();
     void Shutdown();
     void KeepAwake(bool enabled);
+    void WakeDisplay();
 }

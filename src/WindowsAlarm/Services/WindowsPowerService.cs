@@ -85,6 +85,19 @@ public sealed class WindowsPowerService : IPowerService
             throw new Win32Exception(Marshal.GetLastWin32Error(), "알람 재생 중 절전 방지 요청 실패");
     }
 
+    public void WakeDisplay()
+    {
+        // Timer wakes may leave the display off. Request monitor power without
+        // injecting input or changing the user's lock/Windows Hello settings.
+        if (SendMessageTimeout(new IntPtr(0xffff), 0x0112, new UIntPtr(0xf170),
+                new IntPtr(-1), 0x0002, 250, out _) == IntPtr.Zero)
+            throw new InvalidOperationException("화면 켜기 요청이 완료되지 않았습니다.");
+    }
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern IntPtr SendMessageTimeout(IntPtr window, uint message, UIntPtr wParam,
+        IntPtr lParam, uint flags, uint timeout, out UIntPtr result);
+
     private sealed class ShutdownPrivilege : IDisposable
     {
         private readonly SafeAccessTokenHandle _token;

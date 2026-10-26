@@ -49,7 +49,10 @@ public sealed class WebViewYouTubePlayer : IYouTubeAlarmPlayer
         _view = new WebView2();
         _window = new PlayerWindow(_view, () => StopRequested?.Invoke(), _owner);
         _window.Show();
-        var environment = await CoreWebView2Environment.CreateAsync(null, Path.Combine(_store.Root, "webview2")).WaitAsync(token);
+        // An unattended alarm cannot supply the click normally required for audible autoplay.
+        // Apply this only to our dedicated WebView2 profile, leaving other browsers unchanged.
+        var options = new CoreWebView2EnvironmentOptions("--autoplay-policy=no-user-gesture-required");
+        var environment = await CoreWebView2Environment.CreateAsync(null, Path.Combine(_store.Root, "webview2"), options).WaitAsync(token);
         token.ThrowIfCancellationRequested();
         var view = _view ?? throw new OperationCanceledException(token);
         await view.EnsureCoreWebView2Async(environment).WaitAsync(token);

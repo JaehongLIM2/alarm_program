@@ -236,6 +236,13 @@ internal static class Program
             var s = h.Seed(Now) with { IsTest = true }; h.Store.Save("schedule.json", s); h.Coordinator.Recover(Now);
             Check(!h.Coordinator.Shutdown.IsPending); Equal(0, h.Power.ShutdownCalls);
         });
+        Run("display wake failure does not suppress alarm playback", () =>
+        {
+            using var h = NewHarness();
+            h.Power.OnWakeDisplay = () => { Check(h.Power.Awake); throw new InvalidOperationException("display unavailable"); };
+            h.Seed(Now); h.Coordinator.Recover(Now);
+            Equal(1, h.Playback.Starts); Check(h.Coordinator.IsRinging);
+        });
         Run("crashed ringing alarm resumes audio but cancels shutdown", () =>
         {
             using var h = NewHarness(); h.Seed(Now.AddMinutes(-5), AlarmPhase.Ringing); h.Coordinator.Recover(Now);

@@ -8,11 +8,13 @@ internal sealed class FakePower : IPowerService
     public int HibernateCalls, ShutdownCalls;
     public bool HibernateAllowed = true, FailShutdown, Awake;
     public Action? BeforeHibernate;
+    public Action? OnWakeDisplay;
     public string GetDiagnostics() => "fake";
     public void EnsureHibernateAvailable() { if (!HibernateAllowed) throw new InvalidOperationException("disabled"); }
     public void Hibernate() { BeforeHibernate?.Invoke(); HibernateCalls++; }
     public void Shutdown() { ShutdownCalls++; if (FailShutdown) throw new InvalidOperationException("permission denied"); }
     public void KeepAwake(bool enabled) => Awake = enabled;
+    public void WakeDisplay() => OnWakeDisplay?.Invoke();
 }
 internal sealed class FakeScheduler : IWakeScheduler
 {
