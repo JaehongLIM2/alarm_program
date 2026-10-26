@@ -2,8 +2,9 @@ using System.Diagnostics;
 using System.IO;
 using System.Media;
 using System.Text;
-using System.Windows.Media;
 using System.Windows.Threading;
+using Windows.Media.Core;
+using Windows.Media.Playback;
 
 namespace WindowsAlarm.Services;
 
@@ -19,13 +20,18 @@ public sealed class LocalAlarmPlayer : ILocalAlarmOutput
     private readonly AppStore _store;
     private readonly DispatcherTimer _watchdog;
     private readonly Stopwatch _progress = new();
+    private readonly Stopwatch _emergencyRetry = new();
+    private readonly Dispatcher _dispatcher = Dispatcher.CurrentDispatcher;
     private MediaPlayer? _media;
+    private MediaSource? _source;
     private SoundPlayer? _emergency;
     private MemoryStream? _wave;
     private TimeSpan _lastPosition;
     private bool _beepOnly;
     private string? _retryPath;
     public bool IsActive { get; private set; }
+    internal bool SuppressSoundForTesting { get; init; }
+    internal MediaPlayer? NativePlayerForTesting => _media;
     public event Action<string>? StatusChanged;
 
     public LocalAlarmPlayer(AppStore store)
@@ -41,44 +47,75 @@ public sealed class LocalAlarmPlayer : ILocalAlarmOutput
         if (string.IsNullOrWhiteSpace(path) || !File.Exists(path)) { StartEmergency("MP3 미지정 또는 파일 없음"); return; }
         try
         {
-            var player = new MediaPlayer { Volume = 1.0, IsMuted = false };
-            _media = player;
-            player.MediaOpened += (_, _) =>
-            {
-                if (_media != player || !IsActive) return;
-                try { player.Play(); _progress.Restart(); Report("로컬 MP3 반복 재생 중"); }
-                catch (Exception ex) { StartEmergency("MP3 재생 시작 실패", ex); }
-            };
-            player.MediaEnded += (_, _) =>
-            {
-                if (_media != player || !IsActive) return;
-                try { player.Position = TimeSpan.Zero; _lastPosition = TimeSpan.Zero; player.Play(); _progress.Restart(); }
-                catch (Exception ex) { StartEmergency("MP3 반복 재생 실패", ex); }
-            };
-            player.MediaFailed += (_, e) => { if (_media == player && IsActive) StartEmergency("MP3 디코딩/오디오 장치 오류", e.ErrorException); };
-            _lastPosition = TimeSpan.Zero; _progress.Restart();
-            player.Open(new Uri(Path.GetFullPath(path), UriKind.Absolute));
-            player.Play(); _watchdog.Start();
-            Report("로컬 MP3 여는 중");
+            OpenAlertMedia(path, emergency: false);
         }
         catch (Exception ex) { StartEmergency("MP3 실행 실패", ex); }
+    }
+
+    private void OpenAlertMedia(string path, bool emergency)
+    {
+        // Explicitly identify this stream as an alarm/alert rather than ordinary media.
+        var player = new MediaPlayer
+        {
+            AudioCategory = MediaPlayerAudioCategory.Alerts,
+            Volume = 1.0, IsMuted = SuppressSoundForTesting, IsLoopingEnabled = true, AutoPlay = false
+        };
+        _media = player;
+        player.CommandManager.IsEnabled = false;
+        void OnDispatcher(Action action) => _dispatcher.BeginInvoke(() =>
+        {
+            if (_media == player && IsActive) action();
+        });
+        player.MediaOpened += (_, _) => OnDispatcher(() =>
+        {
+            _progress.Restart();
+            Report(emergency ? "내장 경고음 반복 재생 중 · Alerts 오디오" : "로컬 MP3 반복 재생 중 · Alerts 오디오");
+            _store.Log("Alert audio system sound level: " + player.AudioStateMonitor.SoundLevel);
+        });
+        player.AudioStateMonitor.SoundLevelChanged += (_, _) => OnDispatcher(() =>
+            _store.Log("Alert audio system sound level changed: " + player.AudioStateMonitor.SoundLevel));
+        player.MediaFailed += (_, e) => OnDispatcher(() =>
+        {
+            var error = new InvalidOperationException($"{e.Error}: {e.ErrorMessage}");
+            if (emergency) StartLegacyEmergency("Alerts 경고음 출력 실패", error);
+            else StartEmergency("MP3 디코딩/오디오 장치 오류", error);
+        });
+        _source = MediaSource.CreateFromUri(new Uri(Path.GetFullPath(path), UriKind.Absolute));
+        player.Source = _source;
+        _lastPosition = TimeSpan.Zero; _progress.Restart();
+        player.Play(); _watchdog.Start();
+        Report(emergency ? "내장 경고음 여는 중 · Alerts 오디오" : "로컬 MP3 여는 중 · Alerts 오디오");
     }
 
     private void CheckPlayback()
     {
         if (!IsActive) return;
         // Audio endpoints can reappear late after S4 (e.g. USB/HDMI). Reopen periodically even if WAV was accepted.
-        if (_media is null && _progress.Elapsed > TimeSpan.FromSeconds(30)) { Start(_retryPath); return; }
+        if (_emergencyRetry.IsRunning && _emergencyRetry.Elapsed > TimeSpan.FromSeconds(30)) { Start(_retryPath); return; }
         if (_beepOnly) { SystemSounds.Exclamation.Play(); return; }
         if (_media is null) return;
-        if (_media.Position != _lastPosition) { _lastPosition = _media.Position; _progress.Restart(); }
+        if (_media.PlaybackSession.Position != _lastPosition) { _lastPosition = _media.PlaybackSession.Position; _progress.Restart(); }
         else if (_progress.Elapsed > TimeSpan.FromSeconds(10)) StartEmergency("MP3 재생 진행을 10초 동안 확인하지 못함");
     }
 
     private void StartEmergency(string reason, Exception? error = null)
     {
         _store.Log($"Emergency fallback: {reason}", error);
-        var media = _media; _media = null; media?.Close();
+        _emergencyRetry.Restart();
+        CloseMedia();
+        try
+        {
+            var path = Path.Combine(_store.Root, "alarm-alert.wav");
+            File.WriteAllBytes(path, CreateEmergencyWave());
+            OpenAlertMedia(path, emergency: true);
+        }
+        catch (Exception ex) { StartLegacyEmergency("Alerts 경고음 초기화 실패", ex); }
+    }
+
+    private void StartLegacyEmergency(string reason, Exception error)
+    {
+        _store.Log(reason + "; using legacy alarm output", error);
+        CloseMedia();
         _progress.Restart();
         try
         {
@@ -117,10 +154,16 @@ public sealed class LocalAlarmPlayer : ILocalAlarmOutput
 
     public void Stop()
     {
-        IsActive = false; _watchdog.Stop(); _progress.Reset();
-        _media?.Close(); _media = null;
+        IsActive = false; _watchdog.Stop(); _progress.Reset(); _emergencyRetry.Reset();
+        CloseMedia();
         _emergency?.Stop(); _emergency?.Dispose(); _emergency = null;
         _wave?.Dispose(); _wave = null; _beepOnly = false;
+    }
+    private void CloseMedia()
+    {
+        var media = _media; _media = null;
+        try { media?.Dispose(); }
+        finally { _source?.Dispose(); _source = null; }
     }
     private void Report(string message) { _store.Log(message); StatusChanged?.Invoke(message); }
     public void Dispose() => Stop();

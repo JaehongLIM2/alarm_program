@@ -352,6 +352,22 @@ internal static class Program
             }
             finally { player.Close(); }
         });
+        if (args.Contains("--integration")) Run("native Alerts audio advances, loops, stops and ignores stale callbacks", () =>
+        {
+            var store = new AppStore(Path.Combine(_root, "alerts-audio"));
+            var file = Path.Combine(store.Root, "test.wav"); File.WriteAllBytes(file, LocalAlarmPlayer.CreateEmergencyWave());
+            using var player = new LocalAlarmPlayer(store) { SuppressSoundForTesting = true };
+            player.Start(file);
+            PumpUntil(() => player.NativePlayerForTesting?.PlaybackSession.Position > TimeSpan.FromMilliseconds(100), TimeSpan.FromSeconds(8));
+            Equal(Windows.Media.Playback.MediaPlayerAudioCategory.Alerts, player.NativePlayerForTesting!.AudioCategory);
+            Check(player.NativePlayerForTesting.IsLoopingEnabled);
+            player.Stop(); Pump(TimeSpan.FromMilliseconds(200));
+            Check(!player.IsActive); Check(player.NativePlayerForTesting is null);
+            player.Start(null);
+            PumpUntil(() => player.NativePlayerForTesting?.PlaybackSession.Position > TimeSpan.FromMilliseconds(100), TimeSpan.FromSeconds(8));
+            Equal(Windows.Media.Playback.MediaPlayerAudioCategory.Alerts, player.NativePlayerForTesting!.AudioCategory);
+            player.Stop(); Pump(TimeSpan.FromMilliseconds(200)); Check(!player.IsActive);
+        });
         if (args.Contains("--integration")) Run("real Task Scheduler register/read/remove (no S4/shutdown)", SchedulerIntegration);
         if (args.Contains("--webview-integration")) Run("real WebView2 bridge and exclusive fallback with deterministic player API", () => WithDispatcherContext(WebViewIntegration));
         if (args.Contains("--scheduler-process-integration")) Run("scheduler launcher exits while GUI lives and reopens persisted future alarm", SchedulerProcessIntegration);

@@ -6,7 +6,7 @@ Windows 10/11용 개인 알람 프로그램입니다. **C# / .NET 8 / WPF**를 �
 
 ## 빌드와 실행
 
-필요 환경: Windows 10/11, .NET 8 SDK. 실행만 하는 PC에는 **.NET 8 Desktop Runtime**이 필요합니다. [.NET 8 공식 다운로드](https://dotnet.microsoft.com/en-us/download/dotnet/8.0)에서 Windows Desktop Runtime을 설치할 수 있습니다.
+필요 환경: Windows 10 2004(빌드 19041) 이상 또는 Windows 11, .NET 8 SDK. 실행만 하는 PC에는 **.NET 8 Desktop Runtime**이 필요합니다. [.NET 8 공식 다운로드](https://dotnet.microsoft.com/en-us/download/dotnet/8.0)에서 Windows Desktop Runtime을 설치할 수 있습니다.
 
 내장 YouTube 재생에는 **Microsoft Edge WebView2 Runtime**도 필요합니다. Runtime이 없거나 초기화에 실패하면 로컬 음악으로 전환합니다. [Microsoft WebView2 배포 안내](https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/distribution)를 참고하세요. 개인 브라우저의 로그인·쿠키를 가져오지 않는 앱 전용 프로필을 사용합니다.
 
@@ -30,7 +30,7 @@ dotnet run --project tests/WindowsAlarm.Tests -c Release
 dotnet publish src/WindowsAlarm -c Release --no-self-contained -o artifacts/app
 ```
 
-CMD 스크립트는 .NET 도구 캐시를 프로젝트의 `artifacts` 아래에 두므로 PowerShell 실행 정책을 변경할 필요가 없습니다. 첫 빌드에서는 NuGet.org에서 Microsoft WebView2 패키지를 복원합니다. `NuGet.Config`의 소스 매핑은 해당 패키지만 허용하며 버전과 콘텐츠 해시는 `packages.lock.json`으로 고정합니다. 패키지와 참조 팩이 캐시에 있으면 이후 오프라인 빌드도 가능합니다.
+CMD 스크립트는 .NET 도구 캐시를 프로젝트의 `artifacts` 아래에 두므로 PowerShell 실행 정책을 변경할 필요가 없습니다. 첫 빌드에서는 NuGet.org에서 Microsoft WebView2 패키지와 Windows SDK 참조 팩을 복원합니다. `NuGet.Config`의 소스 매핑은 해당 Microsoft 패키지만 허용합니다. WebView2 버전과 콘텐츠 해시는 `packages.lock.json`으로 고정합니다. 패키지와 참조 팩이 캐시에 있으면 이후 오프라인 빌드도 가능합니다.
 
 ## 사용 방법
 
@@ -118,7 +118,7 @@ YouTube 시작 → 최대 20초 동안 재생 확인
 
 로컬 전환 전에 앱 소유 WebView2를 음소거하고 폐기합니다. 이후 늦게 도착한 재생·오류 이벤트는 무시하며 YouTube를 자동으로 다시 켜지 않습니다. 정지/새 알람 시작 때도 이전 초기화와 감시를 취소합니다. 이전의 5초 뒤 무조건 MP3를 추가하던 동작은 제거했습니다. [YouTube IFrame API](https://developers.google.com/youtube/iframe_api_reference), [WebView2 오디오 상태](https://learn.microsoft.com/en-us/dotnet/api/microsoft.web.webview2.core.corewebview2.isdocumentplayingaudio)
 
-MP3는 앱 내부 WPF `MediaPlayer`로 반복 재생합니다. 파일 없음·디코딩 실패·10초 이상 재생 진행을 확인하지 못한 경우 코드로 생성한 PCM WAV 경고음을 `SoundPlayer`로 반복 재생합니다. 마지막으로 Windows 경고음을 재시도합니다. 오디오 장치가 S4 복귀 뒤 늦게 준비되는 경우를 고려해 경고음 사용 중에는 30초마다 로컬 출력도 다시 엽니다.
+MP3는 Windows `MediaPlayer`의 `Alerts` 오디오 범주로 반복 재생합니다. 파일 없음·디코딩 실패·10초 이상 재생 진행을 확인하지 못한 경우 코드로 생성한 PCM WAV 경고음도 같은 범주로 재생합니다. 이 출력 경로가 실패하면 `SoundPlayer`, Windows 경고음 순서로 재시도합니다. 시스템이 보고하는 오디오 `SoundLevel`과 잠금/잠금 해제 세션 이벤트를 로그에 남깁니다. API 재생 진행은 실제 스피커 소리를 보장하지 않으므로 S4 복귀 후 잠금을 해제하지 않은 상태의 가청 여부는 해당 PC에서 별도로 확인해야 합니다. Windows Hello나 잠금 정책은 변경하지 않습니다.
 
 **시스템 음소거, 0 볼륨, 스피커 전원 꺼짐, 출력 장치 없음은 소프트웨어 Fallback으로 해결할 수 없습니다.** 위 재생 확인도 실제 스피커 소리를 측정하는 기능은 아닙니다. 앱은 다른 앱의 볼륨을 변경하지 않습니다. Windows N 에디션은 Media Feature Pack이 필요할 수 있습니다. YouTube 자동재생 정책·영상의 임베드 제한·로그인 필요·네트워크 오류는 로컬 전환 사유입니다. 별도 프로필이므로 기존 브라우저의 YouTube 로그인 상태는 사용하지 않습니다. 다른 브라우저 프로세스와 세션은 종료하지 않습니다.
 

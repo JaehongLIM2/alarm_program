@@ -145,7 +145,12 @@ public partial class MainWindow : Window
         if (e.Mode == PowerModes.Resume) Dispatcher.BeginInvoke(() => { if (!_closing) _coordinator.OnResumeOrSessionChange(powerResume: true); });
         if (e.Mode == PowerModes.Suspend) Dispatcher.BeginInvoke(() => { if (!_closing && _coordinator.Shutdown.IsPending) _coordinator.CancelShutdown("시스템 절전 진입"); });
     }
-    private void SessionChanged(object sender, SessionSwitchEventArgs e) => Dispatcher.BeginInvoke(() => { if (!_closing) _coordinator.OnResumeOrSessionChange(); });
+    private void SessionChanged(object sender, SessionSwitchEventArgs e) => Dispatcher.BeginInvoke(() =>
+    {
+        if (_closing) return;
+        _store.Log("Session switch: " + e.Reason);
+        _coordinator.OnResumeOrSessionChange();
+    });
     public void HandleExternalLaunch(bool wake)
     {
         if (_closing) return;
