@@ -16,6 +16,7 @@ public sealed class AlarmPlaybackService : IAlarmPlayback
     private readonly Func<IYouTubeAlarmPlayer> _createYouTube;
     private readonly Func<TimeSpan, CancellationToken, Task> _delay;
     private readonly TimeProvider _clock;
+    private readonly IAlarmVolumeControl _volume;
     private Session? _current;
     public bool IsActive => _current is not null;
     public event Action<string>? StatusChanged;
@@ -32,11 +33,12 @@ public sealed class AlarmPlaybackService : IAlarmPlayback
     }
 
     public AlarmPlaybackService(AppStore store, ILocalAlarmOutput? local = null, Func<IYouTubeAlarmPlayer>? createYouTube = null,
-        Func<TimeSpan, CancellationToken, Task>? delay = null, TimeProvider? clock = null)
+        Func<TimeSpan, CancellationToken, Task>? delay = null, TimeProvider? clock = null, IAlarmVolumeControl? volume = null)
     {
         _store = store; _local = local ?? new LocalAlarmPlayer(store);
         _createYouTube = createYouTube ?? (() => new WebViewYouTubePlayer(store));
         _delay = delay ?? Task.Delay; _clock = clock ?? TimeProvider.System;
+        _volume = volume ?? new AlarmVolumeController(message => _store.Log(message));
         _local.StatusChanged += message => StatusChanged?.Invoke(message);
     }
 
@@ -44,6 +46,9 @@ public sealed class AlarmPlaybackService : IAlarmPlayback
     {
         Stop();
         var run = new Session(settings, _clock.GetTimestamp()); _current = run;
+        try { _volume.Begin(settings); }
+        catch (Exception ex) { _store.Log("Windows alarm volume adjustment failed; continuing audio", ex); }
+        if (_current != run) return;
         if (!AlarmSettings.TryGetYouTubeVideoId(settings.YouTubeUrl, out var videoId))
         {
             SwitchToLocal(run, string.IsNullOrWhiteSpace(settings.YouTubeUrl) ? "YouTube 미지정" : "저장된 YouTube URL이 유효하지 않음"); return;
@@ -106,9 +111,24 @@ public sealed class AlarmPlaybackService : IAlarmPlayback
     public void Stop()
     {
         var run = _current; _current = null;
-        if (run is not null) { run.Cancellation.Cancel(); CloseYouTube(run); run.Cancellation.Dispose(); }
-        _local.Stop();
+        try
+        {
+            if (run is not null)
+            {
+                try { run.Cancellation.Cancel(); }
+                finally { CloseYouTube(run); run.Cancellation.Dispose(); }
+            }
+        }
+        finally
+        {
+            try { _local.Stop(); }
+            finally
+            {
+                try { _volume.End(); }
+                catch (Exception ex) { _store.Log("Windows volume restoration failed; stop/close will retry", ex); }
+            }
+        }
     }
     private void Report(string message) { _store.Log(message); StatusChanged?.Invoke(message); }
-    public void Dispose() { Stop(); _local.Dispose(); }
+    public void Dispose() { try { Stop(); } finally { _local.Dispose(); } }
 }

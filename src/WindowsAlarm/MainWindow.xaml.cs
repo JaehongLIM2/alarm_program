@@ -46,6 +46,8 @@ public partial class MainWindow : Window
         MinuteBox.SelectedIndex = Math.Clamp(settings.Minute, 0, 59);
         YouTubeBox.Text = settings.YouTubeUrl;
         MusicBox.Text = settings.LocalMusicPath;
+        MaxVolumeCheck.IsChecked = settings.MaximizeWindowsVolume;
+        VolumeAfterStopBox.SelectedIndex = settings.VolumeAfterStop == AlarmVolumeAfterStop.SetZero ? 1 : 0;
         ShutdownCheck.IsChecked = settings.AutoShutdownEnabled;
         ShutdownMinutesBox.Text = settings.ShutdownAfterMinutes.ToString();
         StatusText.Text = _store.LoadWarning ?? "설정을 저장하고 알람을 테스트하세요.";
@@ -68,7 +70,9 @@ public partial class MainWindow : Window
         {
             Hour = HourBox.SelectedIndex, Minute = MinuteBox.SelectedIndex,
             YouTubeUrl = YouTubeBox.Text.Trim(), LocalMusicPath = MusicBox.Text.Trim(),
-            AutoShutdownEnabled = ShutdownCheck.IsChecked == true, ShutdownAfterMinutes = minutes
+            AutoShutdownEnabled = ShutdownCheck.IsChecked == true, ShutdownAfterMinutes = minutes,
+            MaximizeWindowsVolume = MaxVolumeCheck.IsChecked == true,
+            VolumeAfterStop = VolumeAfterStopBox.SelectedIndex == 1 ? AlarmVolumeAfterStop.SetZero : AlarmVolumeAfterStop.RestorePrevious
         };
         if (settings.Validate() is { } error) throw new InvalidOperationException(error);
         return settings;

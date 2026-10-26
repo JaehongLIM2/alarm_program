@@ -1,5 +1,7 @@
 namespace WindowsAlarm.Models;
 
+public enum AlarmVolumeAfterStop { RestorePrevious, SetZero }
+
 // A schedule keeps its own snapshot. Future recurring/multiple alarms can share these settings.
 public sealed record AlarmSettings
 {
@@ -9,11 +11,14 @@ public sealed record AlarmSettings
     public string LocalMusicPath { get; init; } = "";
     public bool AutoShutdownEnabled { get; init; }
     public int ShutdownAfterMinutes { get; init; } = 30;
+    public bool MaximizeWindowsVolume { get; init; } = true;
+    public AlarmVolumeAfterStop VolumeAfterStop { get; init; } = AlarmVolumeAfterStop.RestorePrevious;
 
     public string? Validate()
     {
         if (Hour is < 0 or > 23 || Minute is < 0 or > 59) return "올바른 알람 시간을 선택하세요.";
         if (ShutdownAfterMinutes is < 1 or > 1440) return "자동 종료 시간은 1~1440분 사이로 입력하세요.";
+        if (!Enum.IsDefined(VolumeAfterStop)) return "알람 종료 후 볼륨 동작을 선택하세요.";
         if (!string.IsNullOrWhiteSpace(YouTubeUrl) && !TryGetYouTubeUri(YouTubeUrl, out _))
             return "올바른 HTTPS YouTube 동영상 URL을 입력하세요.";
         if (!string.IsNullOrWhiteSpace(LocalMusicPath))

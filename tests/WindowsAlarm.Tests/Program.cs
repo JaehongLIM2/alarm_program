@@ -24,6 +24,54 @@ internal static class Program
     {
         _root = Path.GetFullPath(args.FirstOrDefault(a => !a.StartsWith("--", StringComparison.Ordinal)) ?? Path.Combine("artifacts", "test-data", Guid.NewGuid().ToString("N")));
         Directory.CreateDirectory(_root);
+        Run("alarm volume restores original level and mute; repeated stop is harmless", () =>
+        {
+            foreach (var muted in new[] { false, true })
+            {
+                var endpoint = new FakeVolumeEndpoint { Muted = muted };
+                var volume = new AlarmVolumeController(_ => { }, () => endpoint);
+                volume.Begin(new AlarmSettings()); Equal(1f, endpoint.Level); Check(!endpoint.Muted);
+                volume.End(); Equal(0.37f, endpoint.Level); Equal(muted, endpoint.Muted); Check(endpoint.Disposed);
+                endpoint.Level = 0.61f; volume.End(); Equal(0.61f, endpoint.Level);
+            }
+        });
+        Run("zero after alarm sets scalar zero without mute; disabled option leaves endpoint untouched", () =>
+        {
+            var endpoint = new FakeVolumeEndpoint { Muted = true };
+            var volume = new AlarmVolumeController(_ => { }, () => endpoint);
+            volume.Begin(new AlarmSettings { VolumeAfterStop = AlarmVolumeAfterStop.SetZero });
+            volume.End(); Equal(0f, endpoint.Level); Check(!endpoint.Muted);
+            var disabled = new AlarmVolumeController(_ => { }, () => throw new InvalidOperationException("must not open"));
+            disabled.Begin(new AlarmSettings { MaximizeWindowsVolume = false }); disabled.End();
+        });
+        Run("failed volume boost rolls back original state; failed restoration can retry", () =>
+        {
+            var endpoint = new FakeVolumeEndpoint { Muted = true, MuteSetFailures = 1 };
+            var volume = new AlarmVolumeController(_ => { }, () => endpoint);
+            Throws(() => volume.Begin(new AlarmSettings { VolumeAfterStop = AlarmVolumeAfterStop.SetZero }));
+            Equal(0.37f, endpoint.Level); Check(endpoint.Muted); Check(endpoint.Disposed);
+            var retry = new FakeVolumeEndpoint();
+            var retryVolume = new AlarmVolumeController(_ => { }, () => retry);
+            retryVolume.Begin(new AlarmSettings()); retry.LevelSetFailures = 1;
+            Throws(retryVolume.End); Check(!retry.Disposed);
+            retryVolume.End(); Equal(0.37f, retry.Level); Check(retry.Disposed);
+        });
+        Run("volume survives YouTube fallback and ends on player stop", () =>
+        {
+            using var h = new PlaybackHarness(_root); h.Start();
+            var ends = h.Volume.Ends; h.YouTube.Error(); Equal(ends, h.Volume.Ends); Check(h.Local.Active);
+            h.Playback.Stop(); Equal(ends + 1, h.Volume.Ends); Check(!h.Local.Active);
+            using var second = new PlaybackHarness(_root); second.Start(); var before = second.Volume.Ends;
+            second.YouTube.RequestStop(); Equal(before + 1, second.Volume.Ends); Check(!second.Playback.IsActive);
+            using var failed = new PlaybackHarness(_root); failed.Volume.OnBegin = () => throw new InvalidOperationException("device missing");
+            failed.Start(); failed.YouTube.Error(); Check(failed.Local.Active);
+        });
+        Run("old settings receive volume defaults and invalid restore modes are rejected", () =>
+        {
+            var settings = System.Text.Json.JsonSerializer.Deserialize<AlarmSettings>("{\"Hour\":7,\"Minute\":30}")!;
+            Check(settings.MaximizeWindowsVolume); Equal(AlarmVolumeAfterStop.RestorePrevious, settings.VolumeAfterStop);
+            Check((settings with { VolumeAfterStop = (AlarmVolumeAfterStop)999 }).Validate() is not null);
+        });
         Run("next alarm today/tomorrow/exact minute", () =>
         {
             var zone = TimeZoneInfo.FindSystemTimeZoneById("Tokyo Standard Time");
@@ -339,13 +387,30 @@ internal static class Program
             ((TextBox)window.FindName("YouTubeBox")).Text = "https://youtu.be/M7lc1UVf-VE";
             ((CheckBox)window.FindName("ShutdownCheck")).IsChecked = true;
             ((TextBox)window.FindName("ShutdownMinutesBox")).Text = "45";
+            ((CheckBox)window.FindName("MaxVolumeCheck")).IsChecked = true;
+            ((ComboBox)window.FindName("VolumeAfterStopBox")).SelectedIndex = 1;
             FindVisuals<Button>(window).Single(button => Equals(button.Content, "설정 저장")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             var saved = store.Load<AlarmSettings>("settings.json"); Equal(9, saved?.Hour); Equal(40, saved?.Minute); Check(saved?.AutoShutdownEnabled == true);
+            Check(saved?.MaximizeWindowsVolume == true); Equal(AlarmVolumeAfterStop.SetZero, saved?.VolumeAfterStop);
             window.UpdateLayout();
             var image = new RenderTargetBitmap((int)window.ActualWidth, (int)window.ActualHeight, 96, 96, PixelFormats.Pbgra32);
             image.Render(window); var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(image));
             using (var output = File.Create(Path.Combine(_root, "main-window.png"))) encoder.Save(output);
             window.Close();
+        });
+        if (args.Contains("--volume-integration")) Run("real Windows master volume boosts, restores and sets zero without mute", () =>
+        {
+            using var original = new WindowsVolumeEndpoint();
+            var level = original.Level; var muted = original.Muted;
+            var volume = new AlarmVolumeController(_ => { });
+            try
+            {
+                volume.Begin(new AlarmSettings()); Check(Math.Abs(original.Level - 1) < 0.001f); Check(!original.Muted);
+                volume.End(); Check(Math.Abs(original.Level - level) < 0.001f); Equal(muted, original.Muted);
+                volume.Begin(new AlarmSettings { VolumeAfterStop = AlarmVolumeAfterStop.SetZero });
+                volume.End(); Check(original.Level < 0.001f); Check(!original.Muted);
+            }
+            finally { try { volume.End(); } finally { original.Level = level; original.Muted = muted; } }
         });
         if (args.Contains("--integration")) Run("muted WPF audio decoder opens and advances PCM", () =>
         {
@@ -355,7 +420,8 @@ internal static class Program
             player.MediaFailed += (_, e) => failure = e.ErrorException;
             try
             {
-                player.Open(new Uri(file)); player.Play(); Pump(TimeSpan.FromSeconds(3));
+                player.Open(new Uri(file)); player.Play();
+                PumpUntil(() => failure is not null || (opened && player.Position > TimeSpan.Zero), TimeSpan.FromSeconds(8));
                 Check(failure is null, failure?.Message); Check(opened, "MediaOpened not received"); Check(player.Position > TimeSpan.Zero, "Audio clock did not advance");
             }
             finally { player.Close(); }
@@ -558,7 +624,7 @@ internal static class Program
             };
             player.SampleReceived += samples.Add; player.Failed += failures.Add;
             return player;
-        });
+        }, volume: new FakeAlarmVolume());
         var start = playback.StartAsync(new AlarmSettings { YouTubeUrl = "https://youtu.be/M7lc1UVf-VE" });
         PumpUntil(() => local.Starts > 0, TimeSpan.FromSeconds(30));
         Check(start.IsCompleted, "Initialization did not settle."); start.GetAwaiter().GetResult();
@@ -645,7 +711,7 @@ internal static class Program
         Run("old session events cannot affect a replacement alarm", () =>
         {
             var old = new FakeYouTube(); var next = new FakeYouTube(); var players = new Queue<IYouTubeAlarmPlayer>([old, next]); var local = new FakeLocalOutput();
-            using var playback = new AlarmPlaybackService(new AppStore(Path.Combine(_root, "replace")), local, () => players.Dequeue());
+            using var playback = new AlarmPlaybackService(new AppStore(Path.Combine(_root, "replace")), local, () => players.Dequeue(), volume: new FakeAlarmVolume());
             playback.StartAsync(new AlarmSettings { YouTubeUrl = "https://youtu.be/M7lc1UVf-VE" }).GetAwaiter().GetResult();
             playback.StartAsync(new AlarmSettings { YouTubeUrl = "https://youtu.be/M7lc1UVf-VE" }).GetAwaiter().GetResult();
             old.Error(); old.Emit(1); Equal(0, local.Starts); Check(old.Stops > 0); Equal(0, next.Stops);
@@ -672,7 +738,7 @@ internal static class Program
         Run("missing or invalid YouTube starts local without creating a WebView", () =>
         {
             var local = new FakeLocalOutput();
-            using var playback = new AlarmPlaybackService(new AppStore(Path.Combine(_root, "local-only")), local, () => throw new InvalidOperationException("must not create WebView"));
+            using var playback = new AlarmPlaybackService(new AppStore(Path.Combine(_root, "local-only")), local, () => throw new InvalidOperationException("must not create WebView"), volume: new FakeAlarmVolume());
             playback.StartAsync(new AlarmSettings()).GetAwaiter().GetResult(); Equal(1, local.Starts);
             playback.StartAsync(new AlarmSettings { YouTubeUrl = "invalid recovered URL" }).GetAwaiter().GetResult(); Equal(2, local.Starts);
         });

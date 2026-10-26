@@ -44,6 +44,23 @@ internal sealed class FakeLocalOutput : ILocalAlarmOutput
     public void Stop() => Active = false;
     public void Dispose() { }
 }
+internal sealed class FakeAlarmVolume : IAlarmVolumeControl
+{
+    public int Begins, Ends;
+    public Action? OnBegin;
+    public void Begin(AlarmSettings settings) { Begins++; OnBegin?.Invoke(); }
+    public void End() => Ends++;
+}
+internal sealed class FakeVolumeEndpoint : IVolumeEndpoint
+{
+    private float _level = 0.37f;
+    private bool _muted;
+    public int LevelSetFailures, MuteSetFailures;
+    public float Level { get => _level; set { if (LevelSetFailures > 0) { LevelSetFailures--; throw new InvalidOperationException("endpoint unavailable"); } _level = value; } }
+    public bool Muted { get => _muted; set { if (MuteSetFailures > 0) { MuteSetFailures--; throw new InvalidOperationException("mute write failed"); } _muted = value; } }
+    public bool Disposed;
+    public void Dispose() => Disposed = true;
+}
 internal sealed class FakeYouTube : IYouTubeAlarmPlayer
 {
     public int Stops;
@@ -73,6 +90,7 @@ internal sealed class PlaybackHarness : IDisposable
     public readonly ManualPlaybackClock Clock = new();
     public readonly FakeYouTube YouTube = new();
     public readonly FakeLocalOutput Local = new();
+    public readonly FakeAlarmVolume Volume = new();
     public readonly List<string> Events = [];
     public readonly AlarmPlaybackService Playback;
     public int Waits;
@@ -80,7 +98,7 @@ internal sealed class PlaybackHarness : IDisposable
     {
         YouTube.OnStop = () => Events.Add("youtube-stop"); Local.OnStart = () => Events.Add("local-start");
         Playback = new AlarmPlaybackService(new AppStore(System.IO.Path.Combine(root, Guid.NewGuid().ToString("N"))), Local, () => YouTube,
-            (_, token) => { Interlocked.Increment(ref Waits); return _delay.Task.WaitAsync(token); }, Clock);
+            (_, token) => { Interlocked.Increment(ref Waits); return _delay.Task.WaitAsync(token); }, Clock, Volume);
     }
     private static TaskCompletionSource NewDelay() => new(TaskCreationOptions.RunContinuationsAsynchronously);
     public void Tick(double seconds)
