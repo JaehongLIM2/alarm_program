@@ -20,6 +20,11 @@ public sealed class WebViewYouTubePlayer : IYouTubeAlarmPlayer
     private readonly string _session = Guid.NewGuid().ToString("N");
     private string? _pageUri;
     private bool _stopped;
+    private AlertPcmPlayer? _pcm;
+    internal bool SuppressSoundForTesting { get; init; }
+    internal bool HasDecodedSignalForTesting => _pcm?.HasDecodedSignal == true;
+    internal bool IsRenderingForTesting => _pcm?.IsRendering == true;
+    internal long PcmPacketsForTesting => _pcm?.Packets ?? 0;
     // Deterministic SDK tests replace only the remote script response, while using the real Runtime and page/bridge.
     internal Action<CoreWebView2>? ConfigureForTesting { get; init; }
     public event Action<YouTubeSample>? SampleReceived;
@@ -51,7 +56,7 @@ public sealed class WebViewYouTubePlayer : IYouTubeAlarmPlayer
         _window.Show();
         // An unattended alarm cannot supply the click normally required for audible autoplay.
         // Apply this only to our dedicated WebView2 profile, leaving other browsers unchanged.
-        var options = new CoreWebView2EnvironmentOptions("--autoplay-policy=no-user-gesture-required");
+        var options = new CoreWebView2EnvironmentOptions("--autoplay-policy=no-user-gesture-required --disable-background-timer-throttling");
         var environment = await CoreWebView2Environment.CreateAsync(null, Path.Combine(_store.Root, "webview2"), options).WaitAsync(token);
         token.ThrowIfCancellationRequested();
         var view = _view ?? throw new OperationCanceledException(token);
@@ -79,6 +84,33 @@ public sealed class WebViewYouTubePlayer : IYouTubeAlarmPlayer
         core.NavigationCompleted += (_, e) => { if (!_stopped && !e.IsSuccess) Failed?.Invoke("YouTube 페이지를 로드할 수 없습니다: " + e.WebErrorStatus); };
         core.ProcessFailed += (_, _) => { if (!_stopped) Failed?.Invoke("내장 YouTube 프로세스가 종료되었습니다."); };
         core.WebMessageReceived += OnWebMessage;
+        using var relayResource = typeof(WebViewYouTubePlayer).Assembly.GetManifestResourceStream("WindowsAlarm.Assets.YouTubeAudioRelay.js")
+            ?? throw new InvalidOperationException("YouTube 오디오 전달 코드를 읽을 수 없습니다.");
+        using var relayReader = new StreamReader(relayResource, Encoding.UTF8);
+        var relayScript = (await relayReader.ReadToEndAsync(token)).Replace("__ALARM_SESSION__", _session, StringComparison.Ordinal);
+        token.ThrowIfCancellationRequested();
+        _pcm = new AlertPcmPlayer(SuppressSoundForTesting);
+        _pcm.Failed += reason => _dispatcher.BeginInvoke(() => { if (!_stopped) Failed?.Invoke(reason); });
+        core.FrameCreated += (_, e) =>
+        {
+            var frame = e.Frame;
+            frame.WebMessageReceived += (_, message) =>
+            {
+                if (_stopped || !Uri.TryCreate(message.Source, UriKind.Absolute, out var uri) || uri.Scheme != "https" ||
+                    uri.Host != "www.youtube.com" || uri.AbsolutePath != "/embed/" + videoId) return;
+                if (!YouTubePcmMessage.TryRead(message.WebMessageAsJson, _session, out var bytes, out var failure, out var ready)) return;
+                if (bytes is not null) _pcm?.Push(bytes);
+                if (ready) _store.Log("YouTube PCM relay running; output category=Alerts");
+                if (failure is not null) Failed?.Invoke(failure);
+            };
+            async Task InstallRelay()
+            {
+                try { if (!_stopped) await frame.ExecuteScriptAsync(relayScript); }
+                catch (Exception ex) { if (!_stopped) _store.Log("YouTube frame audio relay injection failed", ex); }
+            }
+            frame.DOMContentLoaded += (_, _) => _ = InstallRelay();
+            frame.NavigationCompleted += (_, _) => _ = InstallRelay();
+        };
         core.IsMuted = false;
         ConfigureForTesting?.Invoke(core);
         core.Navigate(_pageUri);
@@ -89,7 +121,7 @@ public sealed class WebViewYouTubePlayer : IYouTubeAlarmPlayer
         if (_stopped || e.Source != _pageUri || _view?.CoreWebView2 is not { } core) return;
         try
         {
-            if (!YouTubeMessage.TryRead(e.WebMessageAsJson, _session, core.IsDocumentPlayingAudio && !core.IsMuted, out var message)) return;
+            if (!YouTubeMessage.TryRead(e.WebMessageAsJson, _session, !core.IsMuted && _pcm?.HasRecentSignal == true, out var message)) return;
             if (message!.Sample is { } sample) SampleReceived?.Invoke(sample);
             if (message.Failure is { } failure) Failed?.Invoke(failure);
         }
@@ -101,6 +133,9 @@ public sealed class WebViewYouTubePlayer : IYouTubeAlarmPlayer
         if (!_dispatcher.CheckAccess()) { _dispatcher.Invoke(Stop); return; }
         if (_stopped) return;
         _stopped = true; _lifetime?.Cancel();
+        var pcm = _pcm; _pcm = null;
+        try { if (pcm is not null) { _store.Log($"YouTube PCM relay stopped; packets={pcm.Packets}"); pcm.Dispose(); } }
+        catch (Exception ex) { _store.Log("YouTube Alerts output disposal failed", ex); }
         var view = _view; _view = null;
         // Silence first, then destroy the controller. Delayed API/initialization events can never revive it.
         try { if (view?.CoreWebView2 is { } core) { core.IsMuted = true; core.Stop(); } }

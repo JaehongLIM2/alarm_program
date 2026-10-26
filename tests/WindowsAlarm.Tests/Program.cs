@@ -292,6 +292,14 @@ internal static class Program
             Equal(wave.Length - 8, BitConverter.ToInt32(wave, 4)); Equal(wave.Length - 44, BitConverter.ToInt32(wave, 40));
             Check(wave.Skip(44).Any(b => b != 0));
         });
+        Run("YouTube PCM bridge rejects stale sessions and malformed or oversized packets", () =>
+        {
+            const string packet = "{\"session\":\"current\",\"type\":\"pcm\",\"data\":\"AQABAA==\"}";
+            Check(YouTubePcmMessage.TryRead(packet, "current", out var bytes, out _, out _)); Equal(4, bytes!.Length);
+            foreach (var invalid in new[] { "null", packet.Replace("current", "stale"), packet.Replace("AQABAA==", "!"),
+                packet.Replace("AQABAA==", "AQ=="), packet.Replace("\"current\"", "12"), new string('x', 24001) })
+                Check(!YouTubePcmMessage.TryRead(invalid, "current", out _, out _, out _));
+        });
         Run("native struct layout and read-only Windows diagnostics", () =>
         {
             Equal(76, Marshal.SizeOf<WindowsPowerService.PowerCapabilities>());
@@ -368,6 +376,34 @@ internal static class Program
             Equal(Windows.Media.Playback.MediaPlayerAudioCategory.Alerts, player.NativePlayerForTesting!.AudioCategory);
             player.Stop(); Pump(TimeSpan.FromMilliseconds(200)); Check(!player.IsActive);
         });
+        if (args.Contains("--integration")) Run("live PCM Alerts stream renders and ignores packets after stop", () =>
+        {
+            using var player = new AlertPcmPlayer(mutedForTesting: true);
+            var bytes = new byte[8192];
+            for (var i = 0; i < bytes.Length; i += 2) { bytes[i] = 0; bytes[i + 1] = 20; }
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            while (!player.IsRendering && watch.Elapsed < TimeSpan.FromSeconds(8)) { player.Push(bytes); Pump(TimeSpan.FromMilliseconds(40)); }
+            Check(player.IsRendering); Check(player.HasDecodedSignal);
+            player.Dispose(); var packets = player.Packets; player.Push(bytes); Equal(packets, player.Packets);
+        });
+        if (args.Contains("--live-youtube-audio")) Run("live YouTube iframe supplies nonzero PCM to native Alerts output", () => WithDispatcherContext(() =>
+        {
+            var store = new AppStore(Path.Combine(_root, "live-youtube"));
+            var userStore = new AppStore(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WindowsAlarm"));
+            var settings = userStore.Load<AlarmSettings>("settings.json") ?? new AlarmSettings();
+            Check(AlarmSettings.TryGetYouTubeVideoId(settings.YouTubeUrl, out var videoId), "Configure a YouTube URL in the app before running this opt-in test.");
+            using var player = new WebViewYouTubePlayer(store) { SuppressSoundForTesting = true };
+            var failures = new List<string>(); player.Failed += failures.Add;
+            var start = player.StartAsync(videoId!, CancellationToken.None);
+            PumpUntil(() => start.IsCompleted, TimeSpan.FromSeconds(15)); start.GetAwaiter().GetResult();
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            while ((!player.HasDecodedSignalForTesting || !player.IsRenderingForTesting) && failures.Count == 0 && watch.Elapsed < TimeSpan.FromSeconds(25)) Pump(TimeSpan.FromMilliseconds(100));
+            Check(failures.Count == 0); Check(player.HasDecodedSignalForTesting, "No nonzero decoded YouTube audio reached the native player.");
+            Check(player.IsRenderingForTesting, "Native Alerts player did not render the PCM stream.");
+            Pump(TimeSpan.FromSeconds(5));
+            Console.WriteLine($"  Live YouTube PCM packets={player.PcmPacketsForTesting}; nonzero={player.HasDecodedSignalForTesting}; rendering={player.IsRenderingForTesting}; failures={string.Join("; ", failures)}");
+            Check(failures.Count == 0); Check(player.HasDecodedSignalForTesting); Check(player.IsRenderingForTesting);
+        }));
         if (args.Contains("--integration")) Run("real Task Scheduler register/read/remove (no S4/shutdown)", SchedulerIntegration);
         if (args.Contains("--webview-integration")) Run("real WebView2 bridge and exclusive fallback with deterministic player API", () => WithDispatcherContext(WebViewIntegration));
         if (args.Contains("--scheduler-process-integration")) Run("scheduler launcher exits while GUI lives and reopens persisted future alarm", SchedulerProcessIntegration);
