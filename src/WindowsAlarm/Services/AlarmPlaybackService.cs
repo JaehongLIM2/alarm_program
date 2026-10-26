@@ -91,7 +91,9 @@ public sealed class AlarmPlaybackService : IAlarmPlayback
         // Commit the source switch before cancelling/closing: late, duplicate and reentrant events are ignored.
         run.LocalStarted = true; run.Cancellation.Cancel();
         CloseYouTube(run);
+        if (_current != run) return; // Closing the native window can pump a user stop/new-alarm request.
         Report(reason + " · YouTube를 종료하고 로컬 백업을 시작합니다.");
+        if (_current != run) return; // A status observer may also stop the alarm synchronously.
         try { _local.Start(run.Settings.LocalMusicPath); }
         catch (Exception ex) { _store.Log("Local fallback could not start", ex); Report("로컬 알람 출력 오류. 출력 장치와 로그를 확인하세요."); }
     }

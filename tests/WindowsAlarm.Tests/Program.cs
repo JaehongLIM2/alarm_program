@@ -424,6 +424,20 @@ internal static class Program
             using var h = new PlaybackHarness(_root); h.Playback.StopRequested += h.Playback.Stop; h.Start(); h.YouTube.RequestStop();
             Check(!h.Playback.IsActive); Check(h.YouTube.Stops > 0); Equal(0, h.Local.Starts);
         });
+        Run("stop reentering during native player closure cannot start local audio", () =>
+        {
+            using var h = new PlaybackHarness(_root); h.Start();
+            h.YouTube.OnStop = h.Playback.Stop;
+            h.YouTube.Error();
+            Equal(0, h.Local.Starts); Check(!h.Playback.IsActive);
+        });
+        Run("stop reentering from fallback status cannot start local audio", () =>
+        {
+            using var h = new PlaybackHarness(_root); h.Start();
+            h.Playback.StatusChanged += status => { if (status.Contains("로컬 백업", StringComparison.Ordinal)) h.Playback.Stop(); };
+            h.YouTube.Error();
+            Equal(0, h.Local.Starts); Check(!h.Playback.IsActive);
+        });
         Run("missing or invalid YouTube starts local without creating a WebView", () =>
         {
             var local = new FakeLocalOutput();
