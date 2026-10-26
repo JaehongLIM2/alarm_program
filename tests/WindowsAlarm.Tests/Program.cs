@@ -151,6 +151,39 @@ internal static class Program
             h.Coordinator.StopAlarm(); Equal(AlarmPhase.Stopped, h.Coordinator.Schedule?.Phase); Check(h.Coordinator.Shutdown.IsPending);
             h.Coordinator.CancelShutdown(); Equal(AlarmPhase.Completed, h.Coordinator.Schedule?.Phase); Equal(0, h.Power.ShutdownCalls);
         });
+        Run("input during playback startup remains protected after five minutes idle", () =>
+        {
+            using var h = NewHarness();
+            var schedule = h.Seed(Now) with { Settings = new AlarmSettings { AutoShutdownEnabled = true, ShutdownAfterMinutes = 6 } };
+            h.Store.Save("schedule.json", schedule);
+            h.Playback.OnStart = () => h.Activity.Value = h.Activity.Value with { LastInputTick = 456, IdleTime = TimeSpan.Zero };
+            h.Coordinator.Recover(Now);
+            for (var second = 1; second <= 360; second++) { h.Activity.Value = h.Activity.Value with { IdleTime = TimeSpan.FromSeconds(second) }; h.Coordinator.Tick(Now.AddSeconds(second)); }
+            Equal(ShutdownMode.ActivityConfirmation, h.Coordinator.Shutdown.Mode); Equal(0, h.Power.ShutdownCalls);
+        });
+        Run("shutdown cancellation during playback startup is never reenabled", () =>
+        {
+            using var h = NewHarness(); h.Seed(Now);
+            h.Playback.OnStart = () => h.Coordinator.CancelShutdown();
+            h.Coordinator.Recover(Now);
+            Check(!h.Coordinator.Shutdown.IsPending); Check(h.Coordinator.Schedule?.ShutdownCancelled == true);
+        });
+        Run("stopping audio during startup retains consistent pending-shutdown state", () =>
+        {
+            using var h = NewHarness(); h.Seed(Now); h.Playback.OnStart = h.Coordinator.StopAlarm;
+            h.Coordinator.Recover(Now);
+            Equal(AlarmPhase.Stopped, h.Coordinator.Schedule?.Phase); Check(h.Coordinator.Shutdown.IsPending); Check(!h.Coordinator.IsRinging);
+        });
+        Run("stop during shutdown initialization cannot start delayed audio", () =>
+        {
+            using var h = NewHarness(); h.Seed(Now);
+            h.Coordinator.Changed += () =>
+            {
+                if (h.Coordinator.Shutdown.IsPending && h.Coordinator.IsRinging) h.Coordinator.StopAlarm();
+            };
+            h.Coordinator.Recover(Now);
+            Equal(0, h.Playback.Starts); Equal(AlarmPhase.Stopped, h.Coordinator.Schedule?.Phase); Check(h.Coordinator.Shutdown.IsPending);
+        });
         Run("normal exit preserves future alarm and shutdown preference", () =>
         {
             var h = NewHarness(); h.Seed(Now.AddDays(1)); h.Coordinator.Recover(Now); h.Dispose();
@@ -162,6 +195,39 @@ internal static class Program
             h.Coordinator.CancelShutdown(); h.Coordinator.Tick(Now.AddMinutes(1)); Check(!h.Coordinator.Shutdown.IsPending);
             h.Coordinator.StopAlarm(); h.Coordinator.Arm(new(), DateTimeOffset.Now.AddMinutes(2), false, false);
             h.Coordinator.CancelWake(); Equal(AlarmPhase.Cancelled, h.Coordinator.Schedule?.Phase); Check(!h.Scheduler.Exists());
+        });
+        Run("wake cancellation reports locked state and retry persists cancellation", () =>
+        {
+            using var h = NewHarness(); h.Seed(Now.AddMinutes(1)); h.Coordinator.Recover(Now);
+            using (var locked = new FileStream(Path.Combine(h.Store.Root, "schedule.json"), FileMode.Open, FileAccess.Read, FileShare.Read))
+            {
+                h.Coordinator.CancelWake();
+                Equal(AlarmPhase.Cancelled, h.Coordinator.Schedule?.Phase); Check(!h.Scheduler.Exists());
+                Check(h.Coordinator.Status.Contains("저장하지 못", StringComparison.Ordinal), "Persistent cancellation failure was hidden.");
+            }
+            h.Coordinator.CancelWake();
+            Equal(AlarmPhase.Cancelled, h.Store.Load<AlarmSchedule>("schedule.json")?.Phase);
+            using var recovered = new AlarmCoordinator(h.Store, h.Scheduler, h.Power, new FakePlayback(), h.Activity);
+            recovered.Recover(Now); Check(!h.Scheduler.Exists());
+        });
+        Run("wake cancellation reports scheduler deletion failure and permits retry", () =>
+        {
+            using var h = NewHarness(); h.Seed(Now.AddMinutes(1)); h.Coordinator.Recover(Now); h.Scheduler.FailRemoval = true;
+            h.Coordinator.CancelWake(); Check(h.Scheduler.Exists());
+            Check(h.Coordinator.Status.Contains("삭제하지 못", StringComparison.Ordinal), "Task deletion failure was hidden.");
+            h.Scheduler.FailRemoval = false; h.Coordinator.CancelWake(); Check(!h.Scheduler.Exists());
+        });
+        Run("pre-alarm shutdown cancellation reports persistence failure and retry survives recovery", () =>
+        {
+            using var h = NewHarness(); h.Seed(Now.AddMinutes(1)); h.Coordinator.Recover(Now);
+            using (var locked = new FileStream(Path.Combine(h.Store.Root, "schedule.json"), FileMode.Open, FileAccess.Read, FileShare.Read))
+            {
+                h.Coordinator.CancelShutdown(); Check(h.Coordinator.Schedule?.ShutdownCancelled == true);
+                Check(h.Coordinator.Status.Contains("저장하지 못", StringComparison.Ordinal), "Shutdown cancellation persistence failure was hidden.");
+            }
+            h.Coordinator.CancelShutdown();
+            using var recovered = new AlarmCoordinator(h.Store, h.Scheduler, h.Power, new FakePlayback(), h.Activity);
+            recovered.Recover(Now.AddMinutes(1)); Check(!recovered.Shutdown.IsPending);
         });
         Run("immediate and scheduled tests never schedule shutdown", () =>
         {
@@ -281,6 +347,7 @@ internal static class Program
         });
         if (args.Contains("--integration")) Run("real Task Scheduler register/read/remove (no S4/shutdown)", SchedulerIntegration);
         if (args.Contains("--webview-integration")) Run("real WebView2 bridge and exclusive fallback with deterministic player API", () => WithDispatcherContext(WebViewIntegration));
+        if (args.Contains("--scheduler-process-integration")) Run("scheduler launcher exits while GUI lives and reopens persisted future alarm", SchedulerProcessIntegration);
         app.Shutdown();
         Console.WriteLine($"RESULT: {_passed} passed, {_failed} failed. Data: {_root}");
         return _failed == 0 ? 0 : 1;
@@ -304,6 +371,111 @@ internal static class Program
         Check(!scheduler.Exists());
     }
     private static Harness NewHarness() => new(_root);
+    private static void SchedulerProcessIntegration()
+    {
+        var store = new AppStore(Path.Combine(_root, "scheduler-process", Guid.NewGuid().ToString("N")));
+        var schedule = new AlarmSchedule { DueAt = DateTimeOffset.Now.AddMinutes(15), IsTest = true, ShutdownCancelled = true };
+        store.Save("schedule.json", schedule);
+        var scheduler = new TaskSchedulerWakeService(store.Root);
+        var expectedExe = Path.ChangeExtension(typeof(App).Assembly.Location, ".exe");
+        dynamic? service = null; dynamic? folder = null; dynamic? task = null;
+        var childIds = new HashSet<int>();
+        try
+        {
+            scheduler.Register(schedule);
+            service = Activator.CreateInstance(Type.GetTypeFromProgID("Schedule.Service")!)!; service.Connect(); folder = service.GetFolder("\\"); task = folder.GetTask(scheduler.TaskName);
+            for (var launch = 0; launch < 2; launch++)
+            {
+                object running = task.Run(null); Marshal.FinalReleaseComObject(running);
+                var childId = 0; IntPtr window = IntPtr.Zero;
+                PumpUntil(() =>
+                {
+                    var logs = Path.Combine(store.Root, "logs");
+                    if (!Directory.Exists(logs)) return false;
+                    foreach (var log in Directory.GetFiles(logs, "*.log"))
+                    {
+                        using var stream = new FileStream(log, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                        using var reader = new StreamReader(stream);
+                        foreach (System.Text.RegularExpressions.Match match in System.Text.RegularExpressions.Regex.Matches(reader.ReadToEnd(), @"Application started; process=(\d+)"))
+                        {
+                            var candidate = int.Parse(match.Groups[1].Value);
+                            if (childIds.Contains(candidate)) continue;
+                            var found = ProcessWindow.Find(candidate);
+                            if (found != IntPtr.Zero) { childId = candidate; window = found; return true; }
+                        }
+                    }
+                    return false;
+                }, TimeSpan.FromSeconds(20));
+                childIds.Add(childId);
+                using var child = System.Diagnostics.Process.GetProcessById(childId);
+                Check(string.Equals(child.MainModule?.FileName, expectedExe, StringComparison.OrdinalIgnoreCase), "Unexpected scheduled executable.");
+                PumpUntil(() => (int)task.State == 3, TimeSpan.FromSeconds(10));
+                Check(!child.HasExited, "GUI exited with the launcher.");
+                var recovered = store.Load<AlarmSchedule>("schedule.json");
+                Equal(schedule.Id, recovered?.Id); Equal(AlarmPhase.Armed, recovered?.Phase); Check(recovered?.IsTest == true);
+                Check(ProcessWindow.PostMessage(window, 0x0010, IntPtr.Zero, IntPtr.Zero));
+                Check(child.WaitForExit(6000), "Scheduled GUI did not close after WM_CLOSE.");
+                Check(scheduler.Exists(), "Closing the GUI removed the future alarm.");
+            }
+            Console.WriteLine("  Two scheduled GUI launches, persistent state and completed launcher task verified without audio/S4/shutdown.");
+        }
+        finally
+        {
+            // Stop only this unique scratch task; never terminate a task engine or another app profile.
+            try { if (task is not null) task.Stop(0); } catch (Exception) { }
+            var logs = Path.Combine(store.Root, "logs");
+            if (Directory.Exists(logs))
+                foreach (var log in Directory.GetFiles(logs, "*.log"))
+                {
+                    try
+                    {
+                        foreach (System.Text.RegularExpressions.Match match in System.Text.RegularExpressions.Regex.Matches(File.ReadAllText(log), @"Application started; process=(\d+)"))
+                            childIds.Add(int.Parse(match.Groups[1].Value));
+                    }
+                    catch (IOException) { }
+                }
+            foreach (var childId in childIds)
+            {
+                try
+                {
+                    using var child = System.Diagnostics.Process.GetProcessById(childId);
+                    if (string.Equals(child.MainModule?.FileName, expectedExe, StringComparison.OrdinalIgnoreCase))
+                    {
+                        var window = ProcessWindow.Find(childId);
+                        if (window != IntPtr.Zero) ProcessWindow.PostMessage(window, 0x0010, IntPtr.Zero, IntPtr.Zero);
+                        if (!child.WaitForExit(3000)) child.Kill();
+                    }
+                }
+                catch (ArgumentException) { }
+            }
+            if (task is not null) Marshal.FinalReleaseComObject(task);
+            if (folder is not null) Marshal.FinalReleaseComObject(folder);
+            if (service is not null) Marshal.FinalReleaseComObject(service);
+            scheduler.Remove();
+        }
+        Check(!scheduler.Exists(), "Scratch task was not removed.");
+    }
+
+    private static class ProcessWindow
+    {
+        private delegate bool Callback(IntPtr window, IntPtr state);
+        [DllImport("user32.dll")] private static extern bool EnumWindows(Callback callback, IntPtr state);
+        [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr window, out uint process);
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetWindowText(IntPtr window, StringBuilder title, int length);
+        [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] public static extern bool PostMessage(IntPtr window, uint message, IntPtr w, IntPtr l);
+        public static IntPtr Find(int process)
+        {
+            IntPtr result = IntPtr.Zero;
+            EnumWindows((window, _) =>
+            {
+                GetWindowThreadProcessId(window, out var owner); if (owner != process) return true;
+                var title = new StringBuilder(256); GetWindowText(window, title, 256);
+                if (title.ToString() != "Windows Alarm") return true;
+                result = window; return false;
+            }, IntPtr.Zero);
+            return result;
+        }
+    }
     private static void WebViewIntegration()
     {
         var store = new AppStore(Path.Combine(_root, "webview"));

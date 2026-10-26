@@ -186,6 +186,7 @@ JSON은 임시 파일에 flush한 뒤 교체합니다. 재생 시점에 저장�
 .\test.cmd
 .\test.cmd --integration
 .\test.cmd --webview-integration
+.\test.cmd --scheduler-process-integration
 ```
 
 기본 검증에는 시간/DST 계산, URL·파일 검증, JSON 손상, 예약 실패 시 S4 차단, 알람 중복 방지, 복구, YouTube 실패/대기 중 정지, 자동 종료의 활동/무응답/예외 분기, WPF 창 렌더링·설정 저장이 포함됩니다. 전원/종료는 테스트 대역으로 검증하며 실제 PC를 종료하거나 절전시키지 않습니다.
@@ -193,6 +194,8 @@ JSON은 임시 파일에 flush한 뒤 교체합니다. 재생 시점에 저장�
 `--integration`은 추가로 음소거 PCM 재생과 임시 Windows 예약 작업의 등록·조회·삭제를 시도합니다. 정상 오디오 장치와 작업 스케줄러 접근 권한이 필요합니다. 자체 고유 작업만 사용하며 실제 S4/종료는 수행하지 않습니다. 실패를 성공으로 간주하지 않고 종료 코드 1을 반환합니다.
 
 `--webview-integration`은 실제 WebView2 Runtime과 내장 페이지를 사용하되 YouTube API 응답만 테스트 코드로 대체합니다. 상태 메시지, HTTPS 출처/Referer, 로컬 재생 전 플레이어 종료, 정지를 검증합니다. 실제 YouTube 서비스의 자동재생 성공이나 스피커 출력을 확인하는 검사는 아닙니다. Runtime이 제한된 샌드박스에서는 정상 사용자 세션에서 실행해야 합니다.
+
+`--scheduler-process-integration`은 고유한 테스트 프로필에 미래 예약을 만들고 실제 Windows 작업을 두 번 실행합니다. 실행기 종료 후 GUI 유지, 창을 닫은 뒤 예약 유지와 다음 실행의 상태 복구를 확인하고 임시 작업을 삭제합니다. 알람 재생·최대 절전·PC 종료는 수행하지 않습니다.
 
 수동 확인 순서:
 

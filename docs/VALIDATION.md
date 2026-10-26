@@ -9,7 +9,7 @@
 | Phase 1 | WPF 화면, 설정 검증, JSON 저장 | 성공 |
 | Phase 2 | Task Scheduler WakeToRun, S4 API, 2분 테스트 | 성공 |
 | Phase 3 | 로컬 MP3 반복 재생, 내장 WAV | 성공 |
-| Phase 4 | YouTube 실행, 지연 Fallback, 정지 | 성공 |
+| Phase 4 | YouTube 재생 확인, 배타적 로컬 전환, 정지 | 성공 |
 | Phase 5 | 자동 종료 상태, 카운트다운, 취소 UI | 성공 |
 | Phase 6 | 입력/세션 조회, 무응답 시 취소 | 성공 |
 | Phase 7 | 복구, 단일 인스턴스, 오류/로그, 검증기 | 성공 |
@@ -18,7 +18,7 @@
 
 ## 통과한 검증
 
-`test.cmd`: **46개 통과, 실패 0**. YouTube 재생 확인 및 배타적 로컬 전환 변경을 포함합니다.
+기본 검증 **53개 통과, 실패 0**. 아래 전체 통합 실행에도 동일한 기본 검증이 포함됩니다. YouTube 배타적 전환과 이번 자체 점검에서 추가한 7개 회귀 검증을 포함합니다.
 
 - 다음 시각/자정 경계, DST 누락·중복 시각 계산
 - YouTube HTTPS/정확한 호스트 검증, 파일 경로·설정 범위 검증
@@ -26,6 +26,8 @@
 - 작업 등록 실패·최대 절전 비활성 시 S4 호출 차단
 - 디스크 상태 저장 실패에도 알람 시작 유지
 - 알람 중복 방지, 종료 예약 취소, 정상 앱 종료 후 미래 예약 유지
+- 재생 초기화 중 입력 감지·자동 종료 취소·알람 정지의 일관성, 초기화 중 정지한 소리의 지연 시작 방지
+- 예약 파일 잠금/Windows 작업 삭제 실패의 취소 오류 표시, 재시도 저장 및 재시작 후 취소 유지
 - 테스트 알람 자동 종료 비활성, 늦은 예약 유예/만료 처리
 - 비정상 종료 상태 복구 시 소리 재개 및 자동 종료 취소
 - YouTube의 재생 진행·음소거·볼륨·네이티브 오디오를 함께 확인하고 성공 시 로컬 재생 억제
@@ -47,7 +49,7 @@
 
 ## WebView2 통합 검증
 
-`test.cmd --webview-integration`: **47개 통과, 실패 0**. 일반 사용자 권한으로 실행한 실제 Microsoft WebView2 Runtime에서 확인했습니다.
+전체 통합 실행의 WebView2 검증 **통과**. 일반 사용자 권한으로 실행한 실제 Microsoft WebView2 Runtime에서 확인했습니다.
 
 - 실제 내장 HTML과 HTTPS 가상 호스트를 로드하고 Referer 헤더 확인
 - 실제 WebView2 ↔ 앱 상태 메시지 전달, 실행 식별자 검증
@@ -57,18 +59,26 @@
 
 테스트에서는 YouTube API 스크립트 응답만 대체했고 실제 음원 재생은 하지 않았습니다. 실제 YouTube의 자동재생·영상별 임베드 허용·로그인·네트워크 조건이나 스피커 출력을 검증한 결과는 아닙니다. 제한된 샌드박스에서는 WebView2 프로세스가 종료되어 실패했고, 허용된 일반 사용자 실행 환경에서 위 검증이 통과했습니다.
 
-## 초기 전원·오디오 통합 검증 기록
+## 전원·오디오 및 예약 실행 통합 검증
 
-초기 버전의 `test.cmd --integration`: 당시 기본 34개 통과 + 추가 통합 검증 **2개 실패**. 이 결과를 성공으로 처리하지 않았고, 이번 YouTube 변경에서 해당 전원·오디오 검사를 다시 수행하지 않았습니다.
+이번 자체 점검에서 일반 사용자 실행 환경으로 다시 실행했습니다.
+
+```powershell
+.\test.cmd --integration --webview-integration --scheduler-process-integration artifacts\self-review-final
+```
+
+**56개 통과, 1개 실패**: 기본 53개와 추가 통합 검증 3개 통과, 오디오 통합 검증 1개 실패. 실패가 있으므로 프로세스 종료 코드는 1입니다.
 
 | 항목 | 실제 결과 | 범위 |
 | --- | --- | --- |
-| 실제 Task Scheduler 등록/조회/삭제 | `Schedule.Service.Connect()` 이후 루트 `GetFolder("\\")` 조회에서 `0x80070003` 발생 | 등록 호출까지 도달하지 못함. 임시 작업을 생성하지 못했음 |
-| 음소거 WPF PCM 출력 | `MediaFailed`에 `0xC00D11BA` 수신 | 실제 오디오 출력 성공 및 MP3 반복 재생은 검증하지 못함 |
+| 실제 Task Scheduler 등록/조회/삭제 | 통과 | 고유한 임시 WakeToRun 작업의 등록, XML 조회, 삭제를 검증 |
+| 예약 실행기 → GUI 전달 | 통과 | 실제 작업을 두 번 실행하고 GUI 창/프로필을 확인. 실행기는 끝나고 GUI는 유지됨. 창을 닫아도 미래 예약이 남고 다음 실행에서 상태 복구. 임시 작업은 마지막에 삭제 |
+| 실제 WebView2 메시지/전환 | 통과 | 실제 Runtime과 HTML, 모의 YouTube API 응답 사용. 실제 음원 검증 아님 |
+| 음소거 WPF PCM 출력 | 실패: `MediaFailed`에 `0xC00D11BA` 수신 | 실제 오디오 출력 성공 및 MP3 반복 재생은 검증하지 못함 |
 
-작업 스케줄러 서비스는 Running이었지만 별도의 PowerShell COM 호출에서도 동일한 루트 폴더 조회 오류가 재현됐습니다. 경로는 Microsoft 공식 문서의 루트 경로 표기를 따릅니다. 이 실행 환경의 접근 제약 또는 시스템 구성 문제일 가능성이 있으나 원인을 단정할 수 없습니다. 실제 사용자 세션에서 같은 명령으로 재검증해야 합니다. 실패 시 앱은 S4로 진입하지 않습니다.
+초기 제한 환경에서는 작업 스케줄러 루트 폴더 조회가 `0x80070003`으로 실패했습니다. 이번 일반 사용자 실행에서는 실제 등록/조회/삭제 및 GUI 실행까지 통과했습니다. 앱은 등록 실패 시 S4로 진입하지 않습니다.
 
-오디오 오류 역시 실제 출력 장치/실행 환경에서 재확인이 필요합니다. 내장 경고음 코드 생성과 Fallback의 제어 흐름은 검증했지만, 실제 스피커에서 소리가 난다는 의미는 아닙니다.
+읽기 전용 추가 조회에서 Windows 오디오 서비스 두 개는 실행 중이었지만 점검 프로세스의 `waveOutGetNumDevs()` 결과는 0이었습니다. 이 결과만으로 물리 PC 전체의 출력 장치 상태나 오류 원인을 단정하지 않습니다. 사용 가능한 출력 장치가 있는 실제 사용자 세션에서 재생을 확인해야 합니다. 내장 경고음 생성과 Fallback 제어 흐름 통과는 실제 스피커에서 소리가 난다는 의미가 아닙니다.
 
 ## 수행하지 않은 전원 테스트
 
@@ -84,4 +94,4 @@
 
 ## 검증 산출물
 
-초기 검증 로그는 `artifacts/build-results.txt`, `artifacts/test-results.txt`, `artifacts/integration-results.txt`에 있습니다. YouTube 변경 검증은 `artifacts/youtube-test-results.txt`와 `artifacts/youtube-final-validation`에 저장됩니다. 프로필/캐시/JSON/로그/화면 렌더링을 포함한 산출물 폴더는 Git 추적에서 제외합니다.
+이번 자체 점검의 최종 빌드는 `artifacts/self-review-final-build.txt`, 전체 검증은 `artifacts/self-review-final-tests.txt`, 테스트 프로필은 `artifacts/self-review-final`에 있습니다. 수정 전 회귀 검증 실패는 `artifacts/self-review-regression-before.txt`, `artifacts/self-review-cancel-before.txt`에 기록했습니다. 자세한 변경 사유는 [SELF_REVIEW.md](SELF_REVIEW.md)에 있습니다. 프로필/캐시/JSON/로그/화면 렌더링을 포함한 산출물 폴더는 Git 추적에서 제외합니다.

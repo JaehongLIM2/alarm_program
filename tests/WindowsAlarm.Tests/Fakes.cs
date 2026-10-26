@@ -16,10 +16,10 @@ internal sealed class FakePower : IPowerService
 }
 internal sealed class FakeScheduler : IWakeScheduler
 {
-    public bool FailRegistration;
+    public bool FailRegistration, FailRemoval;
     public AlarmSchedule? Registered;
     public void Register(AlarmSchedule schedule) { if (FailRegistration) throw new InvalidOperationException("denied"); Registered = schedule; }
-    public void Remove() => Registered = null;
+    public void Remove() { if (FailRemoval) throw new InvalidOperationException("delete denied"); Registered = null; }
     public bool Exists() => Registered is not null;
 }
 internal sealed class FakePlayback : IAlarmPlayback
@@ -27,7 +27,8 @@ internal sealed class FakePlayback : IAlarmPlayback
     public int Starts;
     public bool IsActive { get; private set; }
     public AlarmSettings? LastSettings;
-    public Task StartAsync(AlarmSettings settings) { Starts++; LastSettings = settings; IsActive = true; return Task.CompletedTask; }
+    public Action? OnStart;
+    public Task StartAsync(AlarmSettings settings) { Starts++; LastSettings = settings; IsActive = true; OnStart?.Invoke(); return Task.CompletedTask; }
     public void Stop() => IsActive = false;
     public void Dispose() => Stop();
 }

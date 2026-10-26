@@ -43,7 +43,7 @@ public partial class App : Application
                 _store.Log("Scheduler launcher handed off to interactive alarm process");
                 Shutdown(); return;
             }
-            _store.Log("Application started");
+            _store.Log($"Application started; process={Environment.ProcessId}");
             DispatcherUnhandledException += (_, args) =>
             {
                 _store.Log("Unhandled dispatcher exception", args.Exception);
