@@ -1,0 +1,53 @@
+#!/bin/sh
+set -eu
+
+# No HTTPS credential manager, user SSH config, agent identity or password fallback.
+# Git sanitizes repository environment before starting SSH. Read only this checkout's
+# explicit config file, without rediscovering its ownership or trusting global config.
+script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+repo_root=$(CDPATH= cd -- "$script_dir/.." && pwd)
+config_file="$repo_root/.git/config"
+[ -f "$config_file" ] || { echo 'Repository config file is missing.' >&2; exit 1; }
+key=$(git config --file "$config_file" --get accountGuard.sshKey) || exit 1
+ssh_exe=$(git config --file "$config_file" --get accountGuard.sshExecutable) || exit 1
+[ -n "$key" ] && [ -n "$ssh_exe" ] || exit 1
+
+host_seen=false
+command_seen=false
+option_pending=false
+for argument in "$@"; do
+    if [ "$option_pending" = true ]; then
+        [ "$argument" = 'SendEnv=GIT_PROTOCOL' ] || { echo 'Blocked SSH option.' >&2; exit 1; }
+        option_pending=false
+        continue
+    fi
+    case "$argument" in
+        -o) option_pending=true ;;
+        --) ;;
+        git@github.com) [ "$host_seen" = false ] || exit 1; host_seen=true ;;
+        "git-upload-pack 'JaehongLIM2/alarm_program.git'"|"git-receive-pack 'JaehongLIM2/alarm_program.git'")
+            [ "$command_seen" = false ] || exit 1; command_seen=true ;;
+        *) echo 'Blocked SSH destination or command.' >&2; exit 1 ;;
+    esac
+done
+[ "$host_seen" = true ] && [ "$command_seen" = true ] && [ "$option_pending" = false ] || exit 1
+
+authenticate() {
+    "$ssh_exe" -F none -i "$key" -o IdentitiesOnly=yes -o IdentityAgent=none \
+        -o BatchMode=yes -o PreferredAuthentications=publickey -o PasswordAuthentication=no \
+        -o KbdInteractiveAuthentication=no -o StrictHostKeyChecking=yes -o ConnectTimeout=15 -T git@github.com
+}
+result=0
+greeting=$(authenticate 2>&1) || result=$?
+if [ "$result" != 1 ]; then
+    echo 'Personal GitHub authentication failed. No other account will be tried.' >&2
+    exit 1
+fi
+case "$greeting" in
+    *"Hi JaehongLIM2! You've successfully authenticated, but GitHub does not provide shell access."*) ;;
+    *) echo 'Authenticated account is not JaehongLIM2. Connection blocked.' >&2; exit 1 ;;
+esac
+
+exec "$ssh_exe" -F none -i "$key" -o IdentitiesOnly=yes -o IdentityAgent=none \
+    -o BatchMode=yes -o PreferredAuthentications=publickey -o PasswordAuthentication=no \
+    -o KbdInteractiveAuthentication=no -o StrictHostKeyChecking=yes -o ConnectTimeout=15 "$@"

@@ -1,0 +1,73 @@
+<Window x:Class="WindowsAlarm.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="Windows Alarm" Width="680" Height="900"
+        MinWidth="560" MinHeight="640" FontFamily="Segoe UI, Malgun Gothic" FontSize="14" Background="#F4F6FA"
+        WindowStartupLocation="CenterScreen">
+  <DockPanel>
+    <Border DockPanel.Dock="Bottom" Background="#E8EDF6" Padding="20,8">
+      <StackPanel>
+        <WrapPanel>
+          <Button Content="Wake Timer 취소" Click="CancelWake_Click" />
+          <Button Content="예약된 자동 종료 취소" Click="CancelShutdown_Click" />
+          <Button Content="로그 폴더" Click="Logs_Click" />
+          <Button Content="전원 상태 확인" Click="PowerInfo_Click" />
+        </WrapPanel>
+        <TextBlock Text="최근 PC 사용·활동 확인 실패 시 응답이 없으면 자동 종료를 취소합니다. 창을 닫으면 진행 중인 자동 종료는 취소되고 미래 알람 예약은 유지됩니다." FontSize="12" Foreground="#526176" Margin="0,4,0,0" />
+      </StackPanel>
+    </Border>
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+    <StackPanel Margin="28">
+      <TextBlock Text="Windows Alarm" FontSize="30" FontWeight="SemiBold" Foreground="#182C50" />
+      <TextBlock Text="S4 최대 절전 · 로컬 백업 알람 · 안전한 자동 종료" Margin="0,4,0,20" Foreground="#526176" />
+      <StackPanel x:Name="SettingsPanel">
+        <TextBlock Text="알람 시간" FontWeight="SemiBold" Margin="0,0,0,8" />
+        <StackPanel Orientation="Horizontal">
+          <ComboBox x:Name="HourBox" AutomationProperties.Name="알람 시" />
+          <TextBlock Text=":" FontSize="22" Margin="10,2" />
+          <ComboBox x:Name="MinuteBox" AutomationProperties.Name="알람 분" />
+        </StackPanel>
+        <TextBlock Text="YouTube URL (선택)" FontWeight="SemiBold" Margin="0,18,0,8" />
+        <TextBox x:Name="YouTubeBox" AutomationProperties.Name="YouTube URL" />
+        <TextBlock Text="브라우저 재생은 확인할 수 없어 5초 후 로컬 음악도 재생합니다." Foreground="#526176" FontSize="12" Margin="0,5,0,0" />
+        <TextBlock Text="로컬 백업 음악 (MP3)" FontWeight="SemiBold" Margin="0,18,0,8" />
+        <DockPanel>
+          <Button Content="찾아보기" DockPanel.Dock="Right" Click="Browse_Click" Margin="8,0,0,0" />
+          <TextBox x:Name="MusicBox" AutomationProperties.Name="로컬 MP3 파일 경로" />
+        </DockPanel>
+        <TextBlock Text="미지정·삭제·재생 실패 시 내장 경고음을 사용합니다. PC 볼륨을 확인하세요." Foreground="#526176" FontSize="12" Margin="0,5,0,0" />
+        <CheckBox x:Name="ShutdownCheck" Content="자동 종료 사용" Margin="0,20,0,8" />
+        <StackPanel Orientation="Horizontal">
+          <TextBlock Text="알람 시작 후" VerticalAlignment="Center" Margin="0,0,8,0" />
+          <TextBox x:Name="ShutdownMinutesBox" Width="75" MaxLength="4" AutomationProperties.Name="자동 종료까지 분" />
+          <TextBlock Text="분 뒤, 60초 카운트다운" VerticalAlignment="Center" Margin="8,0,0,0" />
+        </StackPanel>
+        <WrapPanel Margin="0,16,0,0">
+          <Button Content="설정 저장" Click="Save_Click" />
+          <Button Content="알람 테스트" Click="Test_Click" />
+        </WrapPanel>
+        <Button Content="알람 설정 후 최대 절전" FontSize="18" FontWeight="SemiBold" Background="#244E91"
+                Foreground="White" Margin="0,8,0,8" Click="Hibernate_Click" />
+        <WrapPanel>
+          <Button Content="2분 뒤 예약 (절전 안 함)" Click="WakeTest_Click" />
+          <Button Content="2분 뒤 예약 후 S4 테스트" Click="S4Test_Click" />
+        </WrapPanel>
+      </StackPanel>
+      <Border x:Name="AlarmPanel" Visibility="Collapsed" Background="#FFF1CB" CornerRadius="8" Padding="16" Margin="0,12">
+        <StackPanel>
+          <TextBlock Text="알람이 울리고 있습니다" FontSize="22" FontWeight="Bold" />
+          <TextBlock x:Name="AudioStatusText" Margin="0,8,0,0" />
+          <Button Content="알람 정지" FontSize="24" FontWeight="Bold" Click="Stop_Click" Margin="0,12,0,0" />
+          <TextBlock Text="YouTube는 열린 브라우저에서 직접 정지하세요. 알람 정지는 자동 종료 예약을 취소하지 않습니다." FontSize="12" Margin="0,8,0,0" />
+        </StackPanel>
+      </Border>
+      <Border Background="White" CornerRadius="8" Padding="16" Margin="0,12,0,4">
+        <StackPanel>
+          <TextBlock Text="예약 상태" FontWeight="SemiBold" />
+          <TextBlock x:Name="ScheduleText" Text="예약 없음" Margin="0,8,0,4" />
+          <TextBlock x:Name="ShutdownText" Text="자동 종료 예약 없음" Foreground="#526176" />
+          <TextBlock x:Name="StatusText" Margin="0,8,0,0" Foreground="#244E91" />
+        </StackPanel>
+      </Border>
+    </StackPanel>
+    </ScrollViewer>
+  </DockPanel>
+</Window>
