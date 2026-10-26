@@ -22,9 +22,10 @@ public partial class MainWindow : Window
         InitializeComponent();
         Height = Math.Min(Height, SystemParameters.WorkArea.Height - 16);
         _store = store;
-        _player = new AlarmPlaybackService(store);
+        _player = new AlarmPlaybackService(store, createYouTube: () => new WebViewYouTubePlayer(store, this));
         _player.StatusChanged += message => AudioStatusText.Text = message;
         _coordinator = new AlarmCoordinator(store, new TaskSchedulerWakeService(store.Root), new WindowsPowerService(), _player, new WindowsActivityMonitor());
+        _player.StopRequested += _coordinator.StopAlarm;
         _coordinator.Changed += RefreshStatus;
         _coordinator.AlarmStarted += () =>
         {

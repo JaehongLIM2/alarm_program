@@ -34,10 +34,60 @@ internal sealed class FakePlayback : IAlarmPlayback
 internal sealed class FakeLocalOutput : ILocalAlarmOutput
 {
     public int Starts;
+    public bool Active;
+    public Action? OnStart;
     public event Action<string>? StatusChanged;
-    public void Start(string? path) { Starts++; StatusChanged?.Invoke("local started"); }
-    public void Stop() { }
+    public void Start(string? path) { OnStart?.Invoke(); Starts++; Active = true; StatusChanged?.Invoke("local started"); }
+    public void Stop() => Active = false;
     public void Dispose() { }
+}
+internal sealed class FakeYouTube : IYouTubeAlarmPlayer
+{
+    public int Stops;
+    public Action? OnStop;
+    public Task Initialization = Task.CompletedTask;
+    public bool FailStart;
+    public event Action<YouTubeSample>? SampleReceived;
+    public event Action<string>? Failed;
+    public event Action? StopRequested;
+    public Task StartAsync(string videoId, CancellationToken cancellationToken) => FailStart ? Task.FromException(new InvalidOperationException("Runtime unavailable")) : Initialization;
+    public void Emit(double position, bool audible = true, bool muted = false, int state = 1, int volume = 100) => SampleReceived?.Invoke(new(state, position, muted, volume, audible));
+    public void Error() => Failed?.Invoke("offline/autoplay blocked");
+    public void RequestStop() => StopRequested?.Invoke();
+    public void Stop() { Stops++; OnStop?.Invoke(); }
+    public void Dispose() { }
+}
+internal sealed class ManualPlaybackClock : TimeProvider
+{
+    private long _ticks;
+    public override long TimestampFrequency => TimeSpan.TicksPerSecond;
+    public override long GetTimestamp() => Interlocked.Read(ref _ticks);
+    public void Advance(double seconds) => Interlocked.Add(ref _ticks, TimeSpan.FromSeconds(seconds).Ticks);
+}
+internal sealed class PlaybackHarness : IDisposable
+{
+    private TaskCompletionSource _delay = NewDelay();
+    public readonly ManualPlaybackClock Clock = new();
+    public readonly FakeYouTube YouTube = new();
+    public readonly FakeLocalOutput Local = new();
+    public readonly List<string> Events = [];
+    public readonly AlarmPlaybackService Playback;
+    public int Waits;
+    public PlaybackHarness(string root)
+    {
+        YouTube.OnStop = () => Events.Add("youtube-stop"); Local.OnStart = () => Events.Add("local-start");
+        Playback = new AlarmPlaybackService(new AppStore(System.IO.Path.Combine(root, Guid.NewGuid().ToString("N"))), Local, () => YouTube,
+            (_, token) => { Interlocked.Increment(ref Waits); return _delay.Task.WaitAsync(token); }, Clock);
+    }
+    private static TaskCompletionSource NewDelay() => new(TaskCreationOptions.RunContinuationsAsynchronously);
+    public void Tick(double seconds)
+    {
+        Clock.Advance(seconds); var waits = Volatile.Read(ref Waits); var delay = _delay; _delay = NewDelay(); delay.TrySetResult();
+        if (!SpinWait.SpinUntil(() => Volatile.Read(ref Waits) > waits || Local.Active || !Playback.IsActive, TimeSpan.FromSeconds(3)))
+            throw new InvalidOperationException("Playback watchdog did not advance.");
+    }
+    public void Start() => Playback.StartAsync(new AlarmSettings { YouTubeUrl = "https://youtu.be/M7lc1UVf-VE" }).GetAwaiter().GetResult();
+    public void Dispose() => Playback.Dispose();
 }
 internal sealed class FakeActivity : IActivityMonitor
 {

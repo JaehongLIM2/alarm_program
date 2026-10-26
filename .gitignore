@@ -28,6 +28,8 @@ artifacts/
 settings.json
 schedule.json
 logs/
+webview2/
+youtube-content/
 *.log
 *.corrupt-*
 *.mp3

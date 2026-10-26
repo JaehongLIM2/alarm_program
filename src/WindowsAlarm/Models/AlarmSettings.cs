@@ -33,14 +33,33 @@ public sealed record AlarmSettings
             !string.IsNullOrEmpty(parsed.UserInfo) || !parsed.IsDefaultPort) return false;
         var host = parsed.IdnHost.ToLowerInvariant();
         if (host is not ("youtube.com" or "www.youtube.com" or "m.youtube.com" or "youtu.be" or "www.youtu.be")) return false;
-        var path = parsed.AbsolutePath;
-        var hasVideo = host.EndsWith("youtu.be", StringComparison.Ordinal)
-            ? path.Trim('/').Length > 0
-            : (path == "/watch" && parsed.Query.TrimStart('?').Split('&').Any(q => q.StartsWith("v=", StringComparison.Ordinal) && q.Length > 2)) ||
-              ((path.StartsWith("/shorts/", StringComparison.Ordinal) || path.StartsWith("/live/", StringComparison.Ordinal) ||
-                path.StartsWith("/embed/", StringComparison.Ordinal)) && path.Split('/', StringSplitOptions.RemoveEmptyEntries).Length >= 2);
-        if (!hasVideo) return false;
+        if (!TryExtractVideoId(parsed, out _)) return false;
         uri = parsed;
+        return true;
+    }
+
+    public static bool TryGetYouTubeVideoId(string? value, out string videoId)
+    {
+        videoId = "";
+        return TryGetYouTubeUri(value, out var uri) && TryExtractVideoId(uri!, out videoId);
+    }
+
+    private static bool TryExtractVideoId(Uri uri, out string videoId)
+    {
+        videoId = "";
+        var path = uri.AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        string? candidate = null;
+        if (uri.IdnHost.EndsWith("youtu.be", StringComparison.OrdinalIgnoreCase) && path.Length == 1) candidate = path[0];
+        else if (uri.AbsolutePath == "/watch")
+        {
+            var values = uri.Query.TrimStart('?').Split('&').Where(q => q.StartsWith("v=", StringComparison.Ordinal)).ToArray();
+            if (values.Length == 1) candidate = values[0][2..];
+        }
+        else if (path.Length == 2 && path[0] is "shorts" or "live" or "embed") candidate = path[1];
+        if (candidate is null) return false;
+        candidate = Uri.UnescapeDataString(candidate);
+        if (candidate.Length != 11 || !candidate.All(c => char.IsAsciiLetterOrDigit(c) || c is '_' or '-')) return false;
+        videoId = candidate;
         return true;
     }
 }

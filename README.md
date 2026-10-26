@@ -1,12 +1,14 @@
 # Windows Alarm
 
-Windows 10/11용 개인 알람 프로그램입니다. **C# / .NET 8 / WPF**를 사용하며 외부 NuGet 패키지, 서버, 웹앱, DB가 없습니다.
+Windows 10/11용 개인 알람 프로그램입니다. **C# / .NET 8 / WPF**를 사용합니다. 내장 YouTube 플레이어에 Microsoft 공식 `Microsoft.Web.WebView2` 패키지 하나를 사용하며, 별도 서버·웹앱·DB는 없습니다.
 
 알람 예약 → Windows 작업 스케줄러 Wake Timer 등록 → S4 최대 절전 → 예약 시각에 알람 → 선택한 시간 뒤 종료 확인 순서로 동작합니다. 기본 자동 종료 설정은 **사용 안 함**입니다.
 
 ## 빌드와 실행
 
 필요 환경: Windows 10/11, .NET 8 SDK. 실행만 하는 PC에는 **.NET 8 Desktop Runtime**이 필요합니다. [.NET 8 공식 다운로드](https://dotnet.microsoft.com/en-us/download/dotnet/8.0)에서 Windows Desktop Runtime을 설치할 수 있습니다.
+
+내장 YouTube 재생에는 **Microsoft Edge WebView2 Runtime**도 필요합니다. Runtime이 없거나 초기화에 실패하면 로컬 음악으로 전환합니다. [Microsoft WebView2 배포 안내](https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/distribution)를 참고하세요. 개인 브라우저의 로그인·쿠키를 가져오지 않는 앱 전용 프로필을 사용합니다.
 
 프로젝트 폴더의 터미널에서:
 
@@ -28,7 +30,7 @@ dotnet run --project tests/WindowsAlarm.Tests -c Release
 dotnet publish src/WindowsAlarm -c Release --no-self-contained -o artifacts/app
 ```
 
-CMD 스크립트는 .NET 도구 캐시를 프로젝트의 `artifacts` 아래에 두므로 PowerShell 실행 정책을 변경할 필요가 없습니다. `NuGet.Config`는 외부 패키지 소스를 비워 두었습니다. .NET 8 SDK와 Windows Desktop 참조 팩이 있으면 네트워크 없이 빌드할 수 있습니다.
+CMD 스크립트는 .NET 도구 캐시를 프로젝트의 `artifacts` 아래에 두므로 PowerShell 실행 정책을 변경할 필요가 없습니다. 첫 빌드에서는 NuGet.org에서 Microsoft WebView2 패키지를 복원합니다. `NuGet.Config`의 소스 매핑은 해당 패키지만 허용하며 버전과 콘텐츠 해시는 `packages.lock.json`으로 고정합니다. 패키지와 참조 팩이 캐시에 있으면 이후 오프라인 빌드도 가능합니다.
 
 ## 사용 방법
 
@@ -36,13 +38,13 @@ CMD 스크립트는 .NET 도구 캐시를 프로젝트의 `artifacts` 아래에 
 2. 자동 종료를 원하면 체크하고 알람 시작 이후 몇 분인지 입력합니다. 범위는 1~1440분입니다.
 3. **설정 저장**으로 저장한 뒤 **알람 테스트**로 소리와 출력 장치를 확인합니다.
 4. **알람 설정 후 최대 절전**을 누릅니다. 선택한 시각이 이미 지났다면 다음 날로 예약합니다.
-5. 재생 중에는 **알람 정지**로 로컬 음악/내장 경고음을 멈춥니다. YouTube는 브라우저에서 직접 정지합니다.
+5. 재생 중에는 **알람 정지**로 내장 YouTube·로컬 음악·경고음을 모두 멈춥니다.
 
 예약은 한 번만 실행됩니다. 매일 자동 반복하지 않으므로 다음 날 사용할 때 다시 예약하세요. 설정을 바꿔 저장해도 이미 예약한 알람은 예약 당시 설정을 사용합니다. 변경한 설정으로 예약 버튼을 다시 눌러야 반영됩니다.
 
 - **Wake Timer 취소**: 미래 알람 예약과 해당 Windows 작업을 취소합니다. 이미 시작한 소리와 자동 종료는 별도의 버튼으로 취소합니다.
 - **예약된 자동 종료 취소**: 카운트다운/종료 예약만 취소합니다. 미래 알람이 있다면 그 알람의 자동 종료도 취소합니다. 음악은 계속 재생됩니다.
-- **알람 정지**: 소리만 정지합니다. 이미 시작된 자동 종료 예약은 유지됩니다.
+- **알람 정지**: 내장 YouTube와 로컬 소리를 모두 정지합니다. 이미 시작된 자동 종료 예약은 유지됩니다. YouTube 창의 정지 버튼이나 창 닫기도 같은 동작입니다.
 - **창 닫기**: 재생과 진행 중인 자동 종료를 취소합니다. 미래 알람과 그 설정은 유지되며 Windows 작업이 앱을 다시 실행합니다.
 - **전원 상태 확인**: S4, 최대 절전 파일, 현재 전원 계획의 Wake Timer 상태를 읽기 전용으로 확인합니다.
 
@@ -104,11 +106,23 @@ S4는 사용자 세션과 앱 상태를 보존합니다. **로그인한 상태�
 
 ## 소리와 Fallback
 
-YouTube URL은 HTTPS와 정확한 YouTube 호스트/동영상 경로를 검증한 뒤 기본 브라우저로 엽니다. 브라우저 실행 성공을 재생 성공으로 간주하지 않습니다. URL이 있으면 5초 뒤 MP3도 반복 재생하며, URL이 없거나 복구한 URL이 잘못되었으면 바로 로컬 재생을 시작합니다.
+YouTube URL은 HTTPS·정확한 호스트·11자리 동영상 ID를 검증하고 앱의 별도 내장 플레이어 창으로 엽니다. 일반 브라우저를 띄우지 않습니다. YouTube 공식 IFrame Player API의 상태/시간/음소거/볼륨과 WebView2의 네이티브 오디오 출력을 함께 확인합니다.
+
+```text
+YouTube 시작 → 최대 20초 동안 재생 확인
+  재생 확인 성공 → YouTube만 재생, 로컬 음악은 대기
+  오류·자동재생 차단·시간 초과 → YouTube 음소거 및 플레이어 폐기 → 로컬 음악 시작
+```
+
+`PLAYING` 상태만으로 성공 처리하지 않습니다. 음소거가 아니고 볼륨이 0보다 크며, 네이티브 오디오 출력이 있는 연속 표본에서 동영상 시간이 1초 이상 진행되어야 합니다. 재생 확인 후에도 감시하며 10초 이상 진행/출력을 확인하지 못하면 로컬로 전환합니다. 일시정지·음소거·긴 무음 구간도 이 조건에 해당할 수 있습니다. 영상은 반복 재생합니다.
+
+로컬 전환 전에 앱 소유 WebView2를 음소거하고 폐기합니다. 이후 늦게 도착한 재생·오류 이벤트는 무시하며 YouTube를 자동으로 다시 켜지 않습니다. 정지/새 알람 시작 때도 이전 초기화와 감시를 취소합니다. 이전의 5초 뒤 무조건 MP3를 추가하던 동작은 제거했습니다. [YouTube IFrame API](https://developers.google.com/youtube/iframe_api_reference), [WebView2 오디오 상태](https://learn.microsoft.com/en-us/dotnet/api/microsoft.web.webview2.core.corewebview2.isdocumentplayingaudio)
 
 MP3는 앱 내부 WPF `MediaPlayer`로 반복 재생합니다. 파일 없음·디코딩 실패·10초 이상 재생 진행을 확인하지 못한 경우 코드로 생성한 PCM WAV 경고음을 `SoundPlayer`로 반복 재생합니다. 마지막으로 Windows 경고음을 재시도합니다. 오디오 장치가 S4 복귀 뒤 늦게 준비되는 경우를 고려해 경고음 사용 중에는 30초마다 로컬 출력도 다시 엽니다.
 
-**시스템 음소거, 0 볼륨, 스피커 전원 꺼짐, 출력 장치 없음은 소프트웨어 Fallback으로 해결할 수 없습니다.** 앱은 다른 앱의 볼륨을 변경하지 않습니다. Windows N 에디션은 Media Feature Pack이 필요할 수 있습니다. 로컬 MP3를 PC 내부 드라이브에 두고 실제 알람 테스트를 수행하세요. YouTube 자동재생, 네트워크, 로그인 상태 때문에 두 소리가 겹치거나 YouTube가 재생되지 않을 수 있습니다. 브라우저 프로세스를 종료하지 않습니다.
+**시스템 음소거, 0 볼륨, 스피커 전원 꺼짐, 출력 장치 없음은 소프트웨어 Fallback으로 해결할 수 없습니다.** 위 재생 확인도 실제 스피커 소리를 측정하는 기능은 아닙니다. 앱은 다른 앱의 볼륨을 변경하지 않습니다. Windows N 에디션은 Media Feature Pack이 필요할 수 있습니다. YouTube 자동재생 정책·영상의 임베드 제한·로그인 필요·네트워크 오류는 로컬 전환 사유입니다. 별도 프로필이므로 기존 브라우저의 YouTube 로그인 상태는 사용하지 않습니다. 다른 브라우저 프로세스와 세션은 종료하지 않습니다.
+
+WebView2는 전용 로컬 HTML 폴더만 HTTPS 가상 호스트로 연결하여 Referer를 제공하고, 상태 메시지의 출처와 실행별 식별자를 확인합니다. 웹 콘텐츠에 네이티브 객체를 제공하지 않으며 파일 다운로드, 권한 요청, 새 창, 최상위 외부 페이지 이동을 허용하지 않습니다. 기존 브라우저의 보안 설정이나 Windows 전역 자동재생 정책을 바꾸지 않습니다.
 
 ## 자동 종료 안전 동작
 
@@ -136,6 +150,8 @@ settings.json                  사용자 설정
 schedule.json                  예약 ID/시각/설정 스냅샷/실행·종료 상태
 *.corrupt-날짜                  읽지 못한 JSON의 보존 사본
 logs\yyyy-MM-dd.log            시작, Wake, 재생, 오류, 활동, 종료 취소 기록
+webview2\                     앱 전용 WebView2 프로필/캐시
+youtube-content\              앱 내장 플레이어 페이지
 ```
 
 JSON은 임시 파일에 flush한 뒤 교체합니다. 재생 시점에 저장이 실패해도 가능한 알람은 계속 시작합니다. 설정 스냅샷이 없으면 저장된 설정 또는 내장 경고음을 사용하고 자동 종료는 비활성화합니다.
@@ -169,11 +185,14 @@ JSON은 임시 파일에 flush한 뒤 교체합니다. 재생 시점에 저장�
 ```powershell
 .\test.cmd
 .\test.cmd --integration
+.\test.cmd --webview-integration
 ```
 
 기본 검증에는 시간/DST 계산, URL·파일 검증, JSON 손상, 예약 실패 시 S4 차단, 알람 중복 방지, 복구, YouTube 실패/대기 중 정지, 자동 종료의 활동/무응답/예외 분기, WPF 창 렌더링·설정 저장이 포함됩니다. 전원/종료는 테스트 대역으로 검증하며 실제 PC를 종료하거나 절전시키지 않습니다.
 
 `--integration`은 추가로 음소거 PCM 재생과 임시 Windows 예약 작업의 등록·조회·삭제를 시도합니다. 정상 오디오 장치와 작업 스케줄러 접근 권한이 필요합니다. 자체 고유 작업만 사용하며 실제 S4/종료는 수행하지 않습니다. 실패를 성공으로 간주하지 않고 종료 코드 1을 반환합니다.
+
+`--webview-integration`은 실제 WebView2 Runtime과 내장 페이지를 사용하되 YouTube API 응답만 테스트 코드로 대체합니다. 상태 메시지, HTTPS 출처/Referer, 로컬 재생 전 플레이어 종료, 정지를 검증합니다. 실제 YouTube 서비스의 자동재생 성공이나 스피커 출력을 확인하는 검사는 아닙니다. Runtime이 제한된 샌드박스에서는 정상 사용자 세션에서 실행해야 합니다.
 
 수동 확인 순서:
 
@@ -198,7 +217,10 @@ src/WindowsAlarm/
   Services/WindowsPowerService.cs       Win32 S4/정상 종료
   Services/WindowsActivityMonitor.cs    입력/세션 조회
   Services/ShutdownController.cs        종료 안전 상태 머신
-  Services/AlarmPlaybackService.cs      YouTube와 지연 Fallback
+  Services/AlarmPlaybackService.cs      YouTube 확인과 배타적인 로컬 전환
+  Services/WebViewYouTubePlayer.cs      앱 소유 WebView2/상태 메시지
+  Services/YouTubePlaybackHealth.cs     재생 진행/오디오 확인 및 시간 초과
+  Assets/YouTubePlayer.html             공식 YouTube IFrame API 페이지
   Services/LocalAlarmPlayer.cs          MP3/내장 WAV/재시도
   Services/AppStore.cs                  JSON/로그
 tests/WindowsAlarm.Tests/       실제 전원 동작 없는 검증기

@@ -18,7 +18,7 @@
 
 ## 통과한 검증
 
-`test.cmd`: **34개 통과, 실패 0**.
+`test.cmd`: **44개 통과, 실패 0**. YouTube 재생 확인 및 배타적 로컬 전환 변경을 포함합니다.
 
 - 다음 시각/자정 경계, DST 누락·중복 시각 계산
 - YouTube HTTPS/정확한 호스트 검증, 파일 경로·설정 범위 검증
@@ -28,7 +28,10 @@
 - 알람 중복 방지, 종료 예약 취소, 정상 앱 종료 후 미래 예약 유지
 - 테스트 알람 자동 종료 비활성, 늦은 예약 유예/만료 처리
 - 비정상 종료 상태 복구 시 소리 재개 및 자동 종료 취소
-- YouTube 실행 실패에도 로컬 Fallback, 5초 대기 중 정지 시 늦은 소리 차단
+- YouTube의 재생 진행·음소거·볼륨·네이티브 오디오를 함께 확인하고 성공 시 로컬 재생 억제
+- 초기 20초 확인 실패, 10초 정체/출력 중단, Runtime 초기화 오류, 자동재생 차단의 로컬 전환
+- 로컬 시작 전 YouTube 정지 순서, 중복·늦은 이벤트 무시, 대기 중 정지, 새 알람과 이전 이벤트 분리
+- 동영상 ID 추출과 메시지 출처/실행 식별자/스키마 검증
 - 60초 종료, 최근/과거 입력 유지, 카운트다운 중 입력, 종료 직전 재조회
 - 활동 API 실패, 다른 세션, 시계 변경·처리 공백, 무응답의 안전한 취소
 - S4 복귀/세션 변경 처리, 종료 API 오류 처리
@@ -41,9 +44,21 @@
 
 별도로 배포된 `WindowsAlarm.exe`를 전용 데이터 폴더로 실행해 해당 프로세스의 `Windows Alarm` 창을 확인했습니다. 두 번째 실행은 새 인스턴스를 유지하지 않고 종료 코드 0으로 끝났으며, 메인 창을 정상 닫았을 때도 종료 코드 0이었습니다. 테스트 프로세스를 남기지 않았습니다.
 
-## 통과하지 못한 통합 검증
+## WebView2 통합 검증
 
-`test.cmd --integration`: 기본 34개 통과 + 추가 통합 검증 **2개 실패**. 이 결과를 성공으로 처리하지 않았습니다.
+`test.cmd --webview-integration`: **45개 통과, 실패 0**. 일반 사용자 권한으로 실행한 실제 Microsoft WebView2 Runtime에서 확인했습니다.
+
+- 실제 내장 HTML과 HTTPS 가상 호스트를 로드하고 Referer 헤더 확인
+- 실제 WebView2 ↔ 앱 상태 메시지 전달, 실행 식별자 검증
+- JavaScript에서 PLAYING을 보고해도 네이티브 오디오가 없으면 재생 성공으로 취급하지 않음
+- 임베드 오류를 수신하면 플레이어를 먼저 음소거·폐기·닫고 로컬 출력 시작
+- 정지한 플레이어의 대기 중 초기화가 나중에 창을 다시 열지 않음
+
+테스트에서는 YouTube API 스크립트 응답만 대체했고 실제 음원 재생은 하지 않았습니다. 실제 YouTube의 자동재생·영상별 임베드 허용·로그인·네트워크 조건이나 스피커 출력을 검증한 결과는 아닙니다. 제한된 샌드박스에서는 WebView2 프로세스가 종료되어 실패했고, 허용된 일반 사용자 실행 환경에서 위 검증이 통과했습니다.
+
+## 초기 전원·오디오 통합 검증 기록
+
+초기 버전의 `test.cmd --integration`: 당시 기본 34개 통과 + 추가 통합 검증 **2개 실패**. 이 결과를 성공으로 처리하지 않았고, 이번 YouTube 변경에서 해당 전원·오디오 검사를 다시 수행하지 않았습니다.
 
 | 항목 | 실제 결과 | 범위 |
 | --- | --- | --- |
@@ -68,4 +83,4 @@
 
 ## 검증 산출물
 
-로컬 검증 로그는 `artifacts/build-results.txt`, `artifacts/test-results.txt`, `artifacts/integration-results.txt`에 있습니다. 프로필/JSON/로그/화면 렌더링은 `artifacts/final-validation` 및 `artifacts/integration-validation`에 저장됩니다. 이 산출물 폴더는 Git 추적에서 제외합니다.
+초기 검증 로그는 `artifacts/build-results.txt`, `artifacts/test-results.txt`, `artifacts/integration-results.txt`에 있습니다. YouTube 변경 검증은 `artifacts/youtube-test-results.txt`와 `artifacts/youtube-final-validation`에 저장됩니다. 프로필/캐시/JSON/로그/화면 렌더링을 포함한 산출물 폴더는 Git 추적에서 제외합니다.

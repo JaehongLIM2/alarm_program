@@ -9,6 +9,7 @@ using System.Windows.Threading;
 using System.Xml.Linq;
 using WindowsAlarm.Models;
 using WindowsAlarm.Services;
+using Microsoft.Web.WebView2.Core;
 using ShutdownMode = WindowsAlarm.Services.ShutdownMode;
 
 namespace WindowsAlarm.Tests;
@@ -40,9 +41,9 @@ internal static class Program
         });
         Run("YouTube exact hosts and HTTPS validation", () =>
         {
-            foreach (var url in new[] { "https://www.youtube.com/watch?v=abc", "https://youtu.be/abc", "https://m.youtube.com/shorts/abc", "https://www.youtube.com/live/abc" })
+            foreach (var url in new[] { "https://www.youtube.com/watch?v=M7lc1UVf-VE", "https://youtu.be/M7lc1UVf-VE", "https://m.youtube.com/shorts/M7lc1UVf-VE", "https://www.youtube.com/live/M7lc1UVf-VE" })
                 Check(AlarmSettings.TryGetYouTubeUri(url, out _), url);
-            foreach (var url in new[] { "file:///C:/x.exe", "http://youtu.be/abc", "https://youtube.com.attacker.com/watch?v=x", "https://youtube.com@evil.test/watch?v=x", "https://youtu.be:123/x", "https://youtube.com/", "https://youtube.com/watch?x=abc", "https://youtube.com/watch?v=" })
+            foreach (var url in new[] { "file:///C:/x.exe", "http://youtu.be/M7lc1UVf-VE", "https://youtube.com.attacker.com/watch?v=x", "https://youtube.com@evil.test/watch?v=x", "https://youtu.be:123/x", "https://youtube.com/", "https://youtube.com/watch?x=abc", "https://youtube.com/watch?v=" })
                 Check(!AlarmSettings.TryGetYouTubeUri(url, out _), url);
         });
         Run("settings bounds, absent MP3 and non-MP3", () =>
@@ -57,7 +58,7 @@ internal static class Program
         Run("JSON roundtrip and corrupt-file preservation", () =>
         {
             var store = new AppStore(Path.Combine(_root, "json"));
-            var settings = new AlarmSettings { Hour = 23, Minute = 59, AutoShutdownEnabled = true, YouTubeUrl = "https://youtu.be/abc" };
+            var settings = new AlarmSettings { Hour = 23, Minute = 59, AutoShutdownEnabled = true, YouTubeUrl = "https://youtu.be/M7lc1UVf-VE" };
             store.Save("settings.json", settings); Equal(settings, store.Load<AlarmSettings>("settings.json"));
             Check(!File.Exists(Path.Combine(store.Root, "settings.json.tmp")));
             var preservedBefore = Directory.GetFiles(store.Root, "*.corrupt-*").Length;
@@ -210,25 +211,7 @@ internal static class Program
             using var h = NewHarness(); h.Seed(DateTimeOffset.Now); h.Coordinator.Recover();
             h.Coordinator.OnResumeOrSessionChange(powerResume: true); Check(h.Coordinator.Shutdown.IsPending);
         });
-        Run("YouTube launch failure still triggers delayed local fallback", () =>
-        {
-            var local = new FakeLocalOutput(); var delay = new TaskCompletionSource();
-            using var launched = new ManualResetEventSlim();
-            using var playback = new AlarmPlaybackService(new AppStore(Path.Combine(_root, "fallback")), local,
-                _ => { launched.Set(); throw new InvalidOperationException("offline/browser error"); },
-                (duration, token) => { Equal(TimeSpan.FromSeconds(5), duration); return delay.Task.WaitAsync(token); });
-            var pending = playback.StartAsync(new AlarmSettings { YouTubeUrl = "https://youtu.be/abc" });
-            Check(launched.Wait(TimeSpan.FromSeconds(2))); Equal(0, local.Starts);
-            delay.SetResult(); pending.GetAwaiter().GetResult(); Equal(1, local.Starts);
-        });
-        Run("stop during fallback delay prevents late audio", () =>
-        {
-            var local = new FakeLocalOutput(); var delay = new TaskCompletionSource();
-            using var playback = new AlarmPlaybackService(new AppStore(Path.Combine(_root, "cancel-fallback")), local,
-                _ => { }, (_, token) => delay.Task.WaitAsync(token));
-            var pending = playback.StartAsync(new AlarmSettings { YouTubeUrl = "https://youtu.be/abc" });
-            playback.Stop(); delay.SetResult(); pending.GetAwaiter().GetResult(); Equal(0, local.Starts);
-        });
+        PlaybackTests();
         Run("generated emergency PCM WAV has valid length and samples", () =>
         {
             var wave = LocalAlarmPlayer.CreateEmergencyWave();
@@ -272,7 +255,7 @@ internal static class Program
             Check(window.IsVisible); Equal("Windows Alarm", window.Title); Check(window.FindName("HourBox") is ComboBox);
             ((ComboBox)window.FindName("HourBox")).SelectedIndex = 9;
             ((ComboBox)window.FindName("MinuteBox")).SelectedIndex = 40;
-            ((TextBox)window.FindName("YouTubeBox")).Text = "https://youtu.be/abc";
+            ((TextBox)window.FindName("YouTubeBox")).Text = "https://youtu.be/M7lc1UVf-VE";
             ((CheckBox)window.FindName("ShutdownCheck")).IsChecked = true;
             ((TextBox)window.FindName("ShutdownMinutesBox")).Text = "45";
             FindVisuals<Button>(window).Single(button => Equals(button.Content, "설정 저장")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
@@ -297,6 +280,7 @@ internal static class Program
             finally { player.Close(); }
         });
         if (args.Contains("--integration")) Run("real Task Scheduler register/read/remove (no S4/shutdown)", SchedulerIntegration);
+        if (args.Contains("--webview-integration")) Run("real WebView2 bridge and exclusive fallback with deterministic player API", () => WithDispatcherContext(WebViewIntegration));
         app.Shutdown();
         Console.WriteLine($"RESULT: {_passed} passed, {_failed} failed. Data: {_root}");
         return _failed == 0 ? 0 : 1;
@@ -320,6 +304,146 @@ internal static class Program
         Check(!scheduler.Exists());
     }
     private static Harness NewHarness() => new(_root);
+    private static void WebViewIntegration()
+    {
+        var store = new AppStore(Path.Combine(_root, "webview"));
+        var local = new FakeLocalOutput(); var samples = new List<YouTubeSample>(); var failures = new List<string>();
+        var referrerSeen = false;
+        local.OnStart = () => Check(!Application.Current.Windows.OfType<Window>().Any(w => w.Title == "YouTube 알람" && w.IsVisible), "YouTube window remained open when local playback started.");
+        using var playback = new AlarmPlaybackService(store, local, () =>
+        {
+            var player = new WebViewYouTubePlayer(store)
+            {
+                ConfigureForTesting = core =>
+                {
+                    core.AddWebResourceRequestedFilter("https://www.youtube.com/iframe_api", CoreWebView2WebResourceContext.Script);
+                    core.WebResourceRequested += (_, e) =>
+                    {
+                        referrerSeen = e.Request.Headers.GetHeader("Referer").Contains(WebViewYouTubePlayer.HostName, StringComparison.Ordinal);
+                        const string script = "window.YT={Player:function(id,o){var t=performance.now();this.getPlayerState=()=>1;this.getCurrentTime=()=>(performance.now()-t)/1000;this.isMuted=()=>false;this.getVolume=()=>100;this.unMute=this.setVolume=this.playVideo=this.mute=this.stopVideo=this.destroy=()=>{};setTimeout(()=>o.events.onReady({target:this}),0);setTimeout(()=>o.events.onError({data:150}),2500);}};window.onYouTubeIframeAPIReady();";
+                        e.Response = core.Environment.CreateWebResourceResponse(new MemoryStream(Encoding.UTF8.GetBytes(script)), 200, "OK", "Content-Type: application/javascript; charset=utf-8");
+                    };
+                }
+            };
+            player.SampleReceived += samples.Add; player.Failed += failures.Add;
+            return player;
+        });
+        var start = playback.StartAsync(new AlarmSettings { YouTubeUrl = "https://youtu.be/M7lc1UVf-VE" });
+        PumpUntil(() => local.Starts > 0, TimeSpan.FromSeconds(30));
+        Check(start.IsCompleted, "Initialization did not settle."); start.GetAwaiter().GetResult();
+        Equal(1, local.Starts); Check(referrerSeen, "The local HTTPS origin did not produce a Referer header.");
+        Check(samples.Count >= 2, "The real WebView message bridge did not deliver progress samples.");
+        Check(samples.All(sample => !sample.AudioPlaying), "A JavaScript PLAYING claim was incorrectly treated as native audio.");
+        Check(failures.Any(reason => reason.Contains("150", StringComparison.Ordinal)), "Expected embed failure did not reach the host.");
+        playback.Stop(); Check(!playback.IsActive); Check(!local.Active);
+        using (var cancelled = new WebViewYouTubePlayer(store))
+        {
+            var queuedStart = cancelled.StartAsync("M7lc1UVf-VE", CancellationToken.None);
+            cancelled.Stop();
+            PumpUntil(() => queuedStart.IsCompleted, TimeSpan.FromSeconds(3));
+            Check(queuedStart.IsCanceled, "A queued start reopened a stopped player.");
+            Check(!Application.Current.Windows.OfType<Window>().Any(w => w.Title == "YouTube 알람" && w.IsVisible));
+        }
+        Console.WriteLine("  Real Runtime, HTTPS origin/Referer, session bridge and mute/dispose-before-local verified; YouTube API response was simulated.");
+    }
+    private static void PlaybackTests()
+    {
+        Run("YouTube video ID extraction rejects ambiguous and injected inputs", () =>
+        {
+            foreach (var url in new[] { "https://youtu.be/M7lc1UVf-VE", "https://www.youtube.com/watch?v=M7lc1UVf-VE&t=10", "https://m.youtube.com/shorts/M7lc1UVf-VE", "https://www.youtube.com/live/M7lc1UVf-VE", "https://www.youtube.com/embed/M7lc1UVf-VE" })
+            { Check(AlarmSettings.TryGetYouTubeVideoId(url, out var id)); Equal("M7lc1UVf-VE", id); }
+            foreach (var url in new[] { "https://youtu.be/short", "https://youtu.be/M7lc1UVf-VE/extra", "https://www.youtube.com/watch?v=M7lc1UVf-VE&v=M7lc1UVf-VE", "https://www.youtube.com/embed/%3Cscript%3E", "https://www.youtube.com/shorts/M7lc1UVf-VE/extra" })
+                Check(!AlarmSettings.TryGetYouTubeVideoId(url, out _), url);
+        });
+        Run("PLAYING alone, static clock, muted video or absent audio never confirms playback", () =>
+        {
+            foreach (var scenario in new[] { "static", "muted", "silent", "zero-volume", "buffering" })
+            {
+                using var h = new PlaybackHarness(_root); h.Start();
+                h.YouTube.Emit(0, audible: scenario != "silent", muted: scenario == "muted", state: scenario == "buffering" ? 3 : 1, volume: scenario == "zero-volume" ? 0 : 100);
+                h.Clock.Advance(2);
+                h.YouTube.Emit(scenario == "static" ? 0 : 2, audible: scenario != "silent", muted: scenario == "muted", state: scenario == "buffering" ? 3 : 1, volume: scenario == "zero-volume" ? 0 : 100);
+                Equal(0, h.Local.Starts); h.Tick(18); Equal(1, h.Local.Starts);
+                Check(h.Events.IndexOf("youtube-stop") < h.Events.IndexOf("local-start"));
+            }
+        });
+        Run("confirmed YouTube stays exclusive beyond startup timeout", () =>
+        {
+            using var h = new PlaybackHarness(_root); h.Start(); h.YouTube.Emit(0);
+            for (var second = 1; second <= 30; second++) { h.Clock.Advance(1); h.YouTube.Emit(second); h.Tick(0); }
+            Equal(0, h.Local.Starts); Equal(0, h.YouTube.Stops);
+        });
+        Run("YouTube startup timeout closes player before starting local once", () =>
+        {
+            using var h = new PlaybackHarness(_root); h.Start(); h.Tick(19); Equal(0, h.Local.Starts);
+            h.Tick(1); Equal(1, h.Local.Starts); Check(h.YouTube.Stops > 0);
+            h.YouTube.Emit(1); h.YouTube.Emit(2); h.YouTube.Error(); Equal(1, h.Local.Starts);
+            Check(h.Events.IndexOf("youtube-stop") < h.Events.IndexOf("local-start"));
+        });
+        Run("confirmed playback stalling or losing audio switches to local", () =>
+        {
+            foreach (var lostAudio in new[] { false, true })
+            {
+                using var h = new PlaybackHarness(_root); h.Start(); h.YouTube.Emit(0); h.Clock.Advance(1); h.YouTube.Emit(1);
+                if (lostAudio) { h.Clock.Advance(1); h.YouTube.Emit(2, audible: false); h.Tick(9); }
+                else h.Tick(10);
+                Equal(1, h.Local.Starts); Check(h.Events.IndexOf("youtube-stop") < h.Events.IndexOf("local-start"));
+            }
+        });
+        Run("YouTube initialization error and autoplay error fall back immediately", () =>
+        {
+            using var failed = new PlaybackHarness(_root); failed.YouTube.FailStart = true; failed.Start(); Equal(1, failed.Local.Starts);
+            using var blocked = new PlaybackHarness(_root); blocked.Start(); blocked.YouTube.Error(); Equal(1, blocked.Local.Starts);
+        });
+        Run("late initialization and playback cannot overlap local fallback", () =>
+        {
+            using var h = new PlaybackHarness(_root); var initialization = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            h.YouTube.Initialization = initialization.Task;
+            var start = h.Playback.StartAsync(new AlarmSettings { YouTubeUrl = "https://youtu.be/M7lc1UVf-VE" });
+            h.Tick(20); Equal(1, h.Local.Starts); initialization.SetResult(); start.GetAwaiter().GetResult();
+            h.YouTube.Emit(0); h.YouTube.Emit(1); h.YouTube.Error(); Equal(1, h.Local.Starts); Check(h.YouTube.Stops > 0);
+        });
+        Run("stop during initialization prevents all late audio", () =>
+        {
+            using var h = new PlaybackHarness(_root); var initialization = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            h.YouTube.Initialization = initialization.Task;
+            var start = h.Playback.StartAsync(new AlarmSettings { YouTubeUrl = "https://youtu.be/M7lc1UVf-VE" });
+            h.Playback.Stop(); initialization.SetResult(); start.GetAwaiter().GetResult();
+            h.YouTube.Emit(1); h.YouTube.Error(); h.Tick(30); Equal(0, h.Local.Starts); Check(!h.Playback.IsActive);
+        });
+        Run("old session events cannot affect a replacement alarm", () =>
+        {
+            var old = new FakeYouTube(); var next = new FakeYouTube(); var players = new Queue<IYouTubeAlarmPlayer>([old, next]); var local = new FakeLocalOutput();
+            using var playback = new AlarmPlaybackService(new AppStore(Path.Combine(_root, "replace")), local, () => players.Dequeue());
+            playback.StartAsync(new AlarmSettings { YouTubeUrl = "https://youtu.be/M7lc1UVf-VE" }).GetAwaiter().GetResult();
+            playback.StartAsync(new AlarmSettings { YouTubeUrl = "https://youtu.be/M7lc1UVf-VE" }).GetAwaiter().GetResult();
+            old.Error(); old.Emit(1); Equal(0, local.Starts); Check(old.Stops > 0); Equal(0, next.Stops);
+        });
+        Run("player stop button stops both sources without activating fallback", () =>
+        {
+            using var h = new PlaybackHarness(_root); h.Playback.StopRequested += h.Playback.Stop; h.Start(); h.YouTube.RequestStop();
+            Check(!h.Playback.IsActive); Check(h.YouTube.Stops > 0); Equal(0, h.Local.Starts);
+        });
+        Run("missing or invalid YouTube starts local without creating a WebView", () =>
+        {
+            var local = new FakeLocalOutput();
+            using var playback = new AlarmPlaybackService(new AppStore(Path.Combine(_root, "local-only")), local, () => throw new InvalidOperationException("must not create WebView"));
+            playback.StartAsync(new AlarmSettings()).GetAwaiter().GetResult(); Equal(1, local.Starts);
+            playback.StartAsync(new AlarmSettings { YouTubeUrl = "invalid recovered URL" }).GetAwaiter().GetResult(); Equal(2, local.Starts);
+        });
+        Run("WebView message bridge authenticates session and validates payload", () =>
+        {
+            var json = "{\"session\":\"current\",\"type\":\"progress\",\"state\":1,\"position\":1.5,\"muted\":false,\"volume\":100}";
+            Check(YouTubeMessage.TryRead(json, "current", true, out var sample)); Check(sample?.Sample?.AudioPlaying == true);
+            Check(!YouTubeMessage.TryRead(json, "stale", true, out _));
+            Check(!YouTubeMessage.TryRead(json.Replace("1.5", "-1"), "current", true, out _));
+            Check(!YouTubeMessage.TryRead(json.Replace("100", "101"), "current", true, out _));
+            Check(!YouTubeMessage.TryRead(json.Replace("false", "\"false\""), "current", true, out _));
+            Check(!YouTubeMessage.TryRead("null", "current", true, out _)); Check(!YouTubeMessage.TryRead(new string('x', 5000), "current", true, out _));
+            Check(YouTubeMessage.TryRead("{\"session\":\"current\",\"type\":\"blocked\"}", "current", true, out var blocked)); Check(blocked?.Failure is not null);
+            Check(YouTubeMessage.TryRead("{\"session\":\"current\",\"type\":\"error\",\"code\":153}", "current", true, out var error)); Check(error?.Failure?.Contains("153", StringComparison.Ordinal) == true);
+        });
+    }
     private static (ShutdownController, FakePower, FakeActivity) NewShutdown()
     {
         var power = new FakePower(); var activity = new FakeActivity(); return (new ShutdownController(power, activity, _ => { }), power, activity);
@@ -329,6 +453,18 @@ internal static class Program
     {
         var frame = new DispatcherFrame(); var timer = new DispatcherTimer { Interval = duration };
         timer.Tick += (_, _) => { timer.Stop(); frame.Continue = false; }; timer.Start(); Dispatcher.PushFrame(frame);
+    }
+    private static void PumpUntil(Func<bool> condition, TimeSpan timeout)
+    {
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        while (!condition() && watch.Elapsed < timeout) Pump(TimeSpan.FromMilliseconds(50));
+        Check(condition(), "Timed out waiting for an integration event.");
+    }
+    private static void WithDispatcherContext(Action action)
+    {
+        var previous = SynchronizationContext.Current;
+        SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(Dispatcher.CurrentDispatcher));
+        try { action(); } finally { SynchronizationContext.SetSynchronizationContext(previous); }
     }
     private static IEnumerable<T> FindVisuals<T>(DependencyObject root) where T : DependencyObject
     {
