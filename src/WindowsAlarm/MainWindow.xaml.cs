@@ -94,6 +94,12 @@ public partial class MainWindow : Window
         var path = Path.Combine(_store.Root, "logs"); Directory.CreateDirectory(path);
         Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
     });
+    private void More_Click(object sender, RoutedEventArgs e)
+    {
+        MoreButton.ContextMenu.PlacementTarget = MoreButton;
+        MoreButton.ContextMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+        MoreButton.ContextMenu.IsOpen = true;
+    }
     private void FontLicense_Click(object sender, RoutedEventArgs e) => RunUi(() =>
     {
         var resource = Application.GetResourceStream(new Uri("pack://application:,,,/WindowsAlarm;component/Assets/Fonts/LICENSE.txt"))
@@ -135,19 +141,11 @@ public partial class MainWindow : Window
     private void RefreshStatus()
     {
         if (_closing) return;
-        ScheduleText.Text = _coordinator.Schedule is { } s ? $"{PhaseLabel(s.Phase)} · {s.DueAt.LocalDateTime:yyyy-MM-dd HH:mm:ss}" : "예약 없음";
+        ApplyReservationStatus(ReservationStatus.Create(_coordinator.Schedule, _coordinator.Shutdown.Mode, _coordinator.Shutdown.DueAt,
+            _coordinator.WakeCancellationNeedsRetry, _coordinator.ShutdownCancellationNeedsRetry));
         StatusText.Text = _coordinator.Status;
         AlarmPanel.Visibility = _coordinator.IsRinging ? Visibility.Visible : Visibility.Collapsed;
         SettingsPanel.IsEnabled = !_coordinator.IsRinging && !_coordinator.Shutdown.IsPending;
-        ShutdownText.Text = _coordinator.Shutdown.Mode switch
-        {
-            ShutdownMode.Scheduled => $"자동 종료 예정 {_coordinator.Shutdown.DueAt?.LocalDateTime:yyyy-MM-dd HH:mm:ss}",
-            ShutdownMode.Countdown => "자동 종료 카운트다운 진행 중",
-            ShutdownMode.ActivityConfirmation => "사용 중 감지 · 응답이 없으면 자동 종료 취소",
-            ShutdownMode.Requested => "Windows에 정상 종료를 요청했습니다. 이후 취소는 Windows 종료 화면에서 가능합니다.",
-            ShutdownMode.Cancelled => "자동 종료 취소됨",
-            _ => "자동 종료 예약 없음"
-        };
         if (_coordinator.Shutdown.Mode is ShutdownMode.Countdown or ShutdownMode.ActivityConfirmation)
         {
             if (_shutdownWindow is null) { _shutdownWindow = new ShutdownWindow(_coordinator.Shutdown) { Owner = this }; _shutdownWindow.Show(); }
@@ -159,11 +157,15 @@ public partial class MainWindow : Window
         }
     }
 
-    private static string PhaseLabel(AlarmPhase phase) => phase switch
+    internal void ApplyReservationStatus(ReservationStatus status)
     {
-        AlarmPhase.Armed => "예약됨", AlarmPhase.Ringing => "알람 재생 중", AlarmPhase.Stopped => "알람 정지",
-        AlarmPhase.Completed => "완료", AlarmPhase.Cancelled => "취소됨", AlarmPhase.Missed => "만료됨", _ => "확인 필요"
-    };
+        ScheduleText.Text = status.AlarmText;
+        AlarmReservationRow.Visibility = status.AlarmText is null ? Visibility.Collapsed : Visibility.Visible;
+        ShutdownText.Text = status.ShutdownText;
+        ShutdownReservationRow.Visibility = status.ShutdownText is null ? Visibility.Collapsed : Visibility.Visible;
+        ShutdownOutcomeText.Text = status.ShutdownOutcome;
+        ShutdownOutcomeText.Visibility = status.ShutdownOutcome is null ? Visibility.Collapsed : Visibility.Visible;
+    }
     private void PowerChanged(object sender, PowerModeChangedEventArgs e)
     {
         if (e.Mode == PowerModes.Resume) Dispatcher.BeginInvoke(() => { if (!_closing) _coordinator.OnResumeOrSessionChange(powerResume: true); });

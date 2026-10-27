@@ -13,6 +13,8 @@ public sealed class AlarmCoordinator : IDisposable
     private bool _keepAwake;
     public ShutdownController Shutdown { get; }
     public AlarmSchedule? Schedule { get; private set; }
+    public bool WakeCancellationNeedsRetry { get; private set; }
+    public bool ShutdownCancellationNeedsRetry { get; private set; }
     public string Status { get; private set; } = "예약 없음";
     public bool IsRinging => _testAlarm || Schedule?.Phase == AlarmPhase.Ringing;
     public event Action? Changed;
@@ -78,6 +80,8 @@ public sealed class AlarmCoordinator : IDisposable
         _store.Save("settings.json", settings);
         _store.Save("schedule.json", schedule);
         Schedule = schedule;
+        WakeCancellationNeedsRetry = false;
+        ShutdownCancellationNeedsRetry = false;
         try { _scheduler.Register(schedule); }
         catch (Exception ex)
         {
@@ -162,6 +166,7 @@ public sealed class AlarmCoordinator : IDisposable
             persisted = TryPersist(); // A second click must retry a previously failed durable cancellation.
         }
         var removed = TryRemoveTask();
+        WakeCancellationNeedsRetry = !persisted || !removed;
         if (!persisted || !removed)
             Report($"알람 예약 취소를 완료하지 못했습니다. {(!persisted ? "취소 상태를 파일에 저장하지 못했습니다. " : "")}{(!removed ? "Windows 예약 작업을 삭제하지 못했습니다. " : "")}로그와 저장 경로를 확인하고 앱을 닫기 전에 취소를 다시 누르세요.");
         else Report("알람 예약을 취소했습니다.");
@@ -175,6 +180,7 @@ public sealed class AlarmCoordinator : IDisposable
         {
             Schedule = schedule with { ShutdownCancelled = true, ShutdownAt = null }; persisted = TryPersist();
         }
+        ShutdownCancellationNeedsRetry = !persisted;
         Report(persisted ? "예약된 자동 종료를 취소했습니다." : "현재 실행의 자동 종료는 취소했지만 취소 상태를 저장하지 못했습니다. 앱을 닫기 전에 저장 경로를 확인하고 자동 종료 취소를 다시 누르세요.");
     }
 
@@ -210,8 +216,8 @@ public sealed class AlarmCoordinator : IDisposable
     }
     private bool TryRemoveTask()
     {
-        try { _scheduler.Remove(); return true; }
-        catch (Exception ex) { _store.Log("Windows task deletion failed; cancellation may need retry", ex); return false; }
+        try { _scheduler.Remove(); WakeCancellationNeedsRetry = false; return true; }
+        catch (Exception ex) { WakeCancellationNeedsRetry = true; _store.Log("Windows task deletion failed; cancellation may need retry", ex); return false; }
     }
     private void UpdateKeepAwake()
     {

@@ -15,7 +15,7 @@ Font designed by Sandoll Communications Inc.
 [NAVER 글꼴 안내](https://hangeul.naver.com/font)와
 [공식 나눔글꼴 라이선스](https://help.naver.com/service/30016/contents/18088?osType=PC&lang=ko)에 따라
 저작권 안내와 SIL Open Font License 1.1 전문을 `LICENSE.txt`에 포함합니다.
-단일 EXE와 설치된 앱 모두 하단 **글꼴 라이선스** 버튼으로 내용을 확인할 수 있습니다.
+단일 EXE와 설치된 앱 모두 상단 **⋯ (더보기) → 글꼴 라이선스** 메뉴로 내용을 확인할 수 있습니다.
 
 | 파일 | 굵기 | SHA-256 |
 | --- | --- | --- |

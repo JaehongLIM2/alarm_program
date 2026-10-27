@@ -5,27 +5,55 @@
   <DockPanel>
     <Border DockPanel.Dock="Bottom" Background="White" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,1,0,0" Padding="24,12">
       <StackPanel>
-        <Grid IsEnabled="{Binding IsEnabled, ElementName=SettingsPanel}" Margin="0,0,0,8">
-          <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-          <Button Content="설정 저장" Click="Save_Click" />
-          <Button Grid.Column="1" Content="알람 테스트" Click="Test_Click" />
-          <Button Grid.Column="2" Content="알람 설정 후 최대 절전" Style="{StaticResource PrimaryButtonStyle}" FontWeight="Bold"
-                  Margin="0,4" Click="Hibernate_Click" />
+        <!-- Cancellation stays outside the disabled settings/actions container. -->
+        <Grid x:Name="AlarmReservationRow" Visibility="Collapsed" Margin="0,0,0,10">
+          <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+          <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
+            <TextBlock Text="알람 예약" Foreground="{StaticResource MutedBrush}" FontSize="13" />
+            <TextBlock x:Name="ScheduleText" FontSize="15" FontWeight="Bold" Margin="0,4,0,0" />
+          </StackPanel>
+          <Button x:Name="CancelWakeButton" Grid.Column="1" Content="알람 예약 취소" Click="CancelWake_Click"
+                  Style="{StaticResource CompactButtonStyle}" Margin="0" VerticalAlignment="Center" />
         </Grid>
-        <WrapPanel>
-          <Button Content="알람 예약 취소" Click="CancelWake_Click" Style="{StaticResource CompactButtonStyle}" />
-          <Button Content="PC 자동 종료 취소" Click="CancelShutdown_Click" Style="{StaticResource CompactButtonStyle}" />
-          <Button Content="로그 폴더" Click="Logs_Click" Style="{StaticResource CompactButtonStyle}" />
-          <Button Content="전원 상태 확인" Click="PowerInfo_Click" Style="{StaticResource CompactButtonStyle}" />
-          <Button Content="글꼴 라이선스" Click="FontLicense_Click" Style="{StaticResource CompactButtonStyle}" />
-        </WrapPanel>
-        <TextBlock Text="최근 PC 사용·활동 확인 실패 시 응답이 없으면 자동 종료를 취소합니다. 창을 닫으면 진행 중인 자동 종료는 취소되고 미래 알람 예약은 유지됩니다."
-                   Style="{StaticResource HelpTextStyle}" Margin="0,6,0,0" />
+        <Grid x:Name="ShutdownReservationRow" Visibility="Collapsed" Margin="0,0,0,10">
+          <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+          <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
+            <TextBlock Text="PC 자동 종료" Foreground="{StaticResource MutedBrush}" FontSize="13" />
+            <TextBlock x:Name="ShutdownText" FontSize="15" FontWeight="Bold" Margin="0,4,0,0" />
+          </StackPanel>
+          <Button x:Name="CancelShutdownButton" Grid.Column="1" Content="PC 자동 종료 취소" Click="CancelShutdown_Click"
+                  Style="{StaticResource CompactButtonStyle}" Margin="0" VerticalAlignment="Center" />
+        </Grid>
+        <TextBlock x:Name="ShutdownOutcomeText" Visibility="Collapsed" Style="{StaticResource HelpTextStyle}" Margin="0,0,0,6" />
+        <TextBlock x:Name="StatusText" Foreground="#1D4ED8" FontSize="14" Margin="0,0,0,8" />
+        <StackPanel IsEnabled="{Binding IsEnabled, ElementName=SettingsPanel}">
+          <Grid Margin="0,0,0,8">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+            <Button Content="알람 테스트" Click="Test_Click" Margin="0,0,4,0" />
+            <Button Grid.Column="1" Content="설정 저장" Click="Save_Click" Margin="4,0,0,0" />
+          </Grid>
+          <Button Content="알람 설정 후 최대 절전" Style="{StaticResource PrimaryButtonStyle}" FontWeight="Bold"
+                  Margin="0" Click="Hibernate_Click" />
+        </StackPanel>
       </StackPanel>
     </Border>
-    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-      <StackPanel Margin="24">
-        <TextBlock Text="Windows Alarm" FontSize="28" FontWeight="Bold" Margin="0,0,0,20" />
+    <Grid DockPanel.Dock="Top" Margin="24,20,24,16">
+      <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+      <TextBlock Text="Windows Alarm" FontSize="28" FontWeight="Bold" VerticalAlignment="Center" />
+      <Button Grid.Column="1" Content="전원 상태 확인" Click="PowerInfo_Click" Style="{StaticResource CompactButtonStyle}" Margin="12,0,8,0" />
+      <Button x:Name="MoreButton" Grid.Column="2" Content="⋯" FontSize="22" Width="38" Padding="0"
+              Style="{StaticResource CompactButtonStyle}" Margin="0" Click="More_Click" AutomationProperties.Name="더보기" ToolTip="더보기">
+        <Button.ContextMenu>
+          <ContextMenu FontFamily="{StaticResource AppFontFamily}" FontSize="15" Padding="4"
+                       TextOptions.TextFormattingMode="Ideal" TextOptions.TextRenderingMode="ClearType">
+            <MenuItem Header="로그 폴더" Click="Logs_Click" Padding="12,8" />
+            <MenuItem Header="글꼴 라이선스" Click="FontLicense_Click" Padding="12,8" />
+          </ContextMenu>
+        </Button.ContextMenu>
+      </Button>
+    </Grid>
+    <ScrollViewer x:Name="SettingsScrollViewer" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+      <StackPanel Margin="24,0,24,16">
         <StackPanel x:Name="SettingsPanel">
           <Border Style="{StaticResource CardStyle}">
             <StackPanel>
@@ -72,6 +100,8 @@
                 <TextBox x:Name="ShutdownMinutesBox" Width="80" MaxLength="4" AutomationProperties.Name="자동 종료까지 분" />
                 <TextBlock Text="분 뒤, 60초 카운트다운" VerticalAlignment="Center" Margin="8,0,0,0" />
               </WrapPanel>
+              <TextBlock Text="PC 사용·활동 확인 실패 시 응답이 없으면 자동 종료를 취소합니다. 창을 닫으면 진행 중인 자동 종료는 취소되고 미래 알람 예약은 유지됩니다."
+                         Style="{StaticResource HelpTextStyle}" Margin="0,12,0,0" />
             </StackPanel>
           </Border>
 
@@ -86,14 +116,6 @@
                     Click="Stop_Click" Margin="0,16,0,0" />
             <TextBlock Text="알람 정지는 모든 소리를 멈추고 선택한 종료 후 볼륨을 적용합니다. 자동 종료 예약은 유지됩니다."
                        Style="{StaticResource HelpTextStyle}" Margin="0,10,0,0" />
-          </StackPanel>
-        </Border>
-        <Border Style="{StaticResource CardStyle}" Background="#EFF6FF" BorderBrush="#BFDBFE" Margin="0">
-          <StackPanel>
-            <TextBlock Text="예약 상태" FontWeight="Bold" />
-            <TextBlock x:Name="ScheduleText" Text="예약 없음" Margin="0,10,0,6" />
-            <TextBlock x:Name="ShutdownText" Text="자동 종료 예약 없음" Foreground="#52525B" />
-            <TextBlock x:Name="StatusText" Margin="0,10,0,0" Foreground="#1D4ED8" />
           </StackPanel>
         </Border>
       </StackPanel>

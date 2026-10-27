@@ -293,6 +293,43 @@ internal static class Program
             h.Coordinator.StopAlarm(); h.Coordinator.Arm(new(), DateTimeOffset.Now.AddMinutes(2), false, false);
             h.Coordinator.CancelWake(); Equal(AlarmPhase.Cancelled, h.Coordinator.Schedule?.Phase); Check(!h.Scheduler.Exists());
         });
+        Run("footer shows only committed future reservations and excludes test shutdowns", () =>
+        {
+            Equal(new ReservationStatus(null, null, null), ReservationStatus.Create(null, ShutdownMode.None, null));
+            var schedule = new AlarmSchedule { DueAt = Now, Settings = new() { AutoShutdownEnabled = true, ShutdownAfterMinutes = 45 } };
+            var status = ReservationStatus.Create(schedule, ShutdownMode.None, null);
+            Check(status.AlarmText is not null); Check(status.ShutdownText?.Contains("45분") == true);
+            foreach (var disabled in new[] { schedule with { ShutdownCancelled = true }, schedule with { IsTest = true },
+                schedule with { Settings = schedule.Settings with { AutoShutdownEnabled = false } } })
+            {
+                var hidden = ReservationStatus.Create(disabled, ShutdownMode.None, null);
+                Check(hidden.AlarmText is not null); Check(hidden.ShutdownText is null);
+            }
+            foreach (var phase in Enum.GetValues<AlarmPhase>().Where(p => p != AlarmPhase.Armed))
+                Equal(new ReservationStatus(null, null, null), ReservationStatus.Create(schedule with { Phase = phase }, ShutdownMode.None, null));
+        });
+        Run("footer keeps shutdown cancellation available after audio stops and reports outcomes", () =>
+        {
+            var stopped = new AlarmSchedule { DueAt = Now, Phase = AlarmPhase.Stopped };
+            foreach (var mode in new[] { ShutdownMode.Scheduled, ShutdownMode.Countdown, ShutdownMode.ActivityConfirmation })
+            {
+                var status = ReservationStatus.Create(stopped, mode, Now.AddMinutes(30));
+                Check(status.AlarmText is null); Check(status.ShutdownText is not null); Check(status.ShutdownOutcome is null);
+            }
+            var cancelled = ReservationStatus.Create(stopped, ShutdownMode.Cancelled, null);
+            Check(cancelled.ShutdownText is null); Equal("PC 자동 종료 취소됨", cancelled.ShutdownOutcome);
+            var requested = ReservationStatus.Create(stopped, ShutdownMode.Requested, null, shutdownCancellationNeedsRetry: true);
+            Check(requested.ShutdownText is null); Check(requested.ShutdownOutcome?.Contains("Windows 종료 화면") == true);
+        });
+        Run("footer preserves cancellation retry actions after partial failure", () =>
+        {
+            var cancelled = new AlarmSchedule { DueAt = Now, Phase = AlarmPhase.Cancelled, ShutdownCancelled = true };
+            var retry = ReservationStatus.Create(cancelled, ShutdownMode.Cancelled, null, true, true);
+            Check(retry.AlarmText?.Contains("다시 시도") == true); Check(retry.ShutdownText?.Contains("다시 시도") == true);
+            Check(retry.ShutdownOutcome is null);
+            var complete = ReservationStatus.Create(cancelled, ShutdownMode.Cancelled, null);
+            Check(complete.AlarmText is null); Check(complete.ShutdownText is null);
+        });
         Run("wake cancellation reports locked state and retry persists cancellation", () =>
         {
             using var h = NewHarness(); h.Seed(Now.AddMinutes(1)); h.Coordinator.Recover(Now);
@@ -301,8 +338,10 @@ internal static class Program
                 h.Coordinator.CancelWake();
                 Equal(AlarmPhase.Cancelled, h.Coordinator.Schedule?.Phase); Check(!h.Scheduler.Exists());
                 Check(h.Coordinator.Status.Contains("저장하지 못", StringComparison.Ordinal), "Persistent cancellation failure was hidden.");
+                Check(h.Coordinator.WakeCancellationNeedsRetry);
             }
             h.Coordinator.CancelWake();
+            Check(!h.Coordinator.WakeCancellationNeedsRetry);
             Equal(AlarmPhase.Cancelled, h.Store.Load<AlarmSchedule>("schedule.json")?.Phase);
             using var recovered = new AlarmCoordinator(h.Store, h.Scheduler, h.Power, new FakePlayback(), h.Activity);
             recovered.Recover(Now); Check(!h.Scheduler.Exists());
@@ -311,8 +350,10 @@ internal static class Program
         {
             using var h = NewHarness(); h.Seed(Now.AddMinutes(1)); h.Coordinator.Recover(Now); h.Scheduler.FailRemoval = true;
             h.Coordinator.CancelWake(); Check(h.Scheduler.Exists());
+            Check(h.Coordinator.WakeCancellationNeedsRetry);
             Check(h.Coordinator.Status.Contains("삭제하지 못", StringComparison.Ordinal), "Task deletion failure was hidden.");
-            h.Scheduler.FailRemoval = false; h.Coordinator.CancelWake(); Check(!h.Scheduler.Exists());
+            h.Coordinator.Recover(Now); Check(h.Coordinator.WakeCancellationNeedsRetry);
+            h.Scheduler.FailRemoval = false; h.Coordinator.CancelWake(); Check(!h.Scheduler.Exists()); Check(!h.Coordinator.WakeCancellationNeedsRetry);
         });
         Run("pre-alarm shutdown cancellation reports persistence failure and retry survives recovery", () =>
         {
@@ -320,9 +361,11 @@ internal static class Program
             using (var locked = new FileStream(Path.Combine(h.Store.Root, "schedule.json"), FileMode.Open, FileAccess.Read, FileShare.Read))
             {
                 h.Coordinator.CancelShutdown(); Check(h.Coordinator.Schedule?.ShutdownCancelled == true);
+                Check(h.Coordinator.ShutdownCancellationNeedsRetry);
                 Check(h.Coordinator.Status.Contains("저장하지 못", StringComparison.Ordinal), "Shutdown cancellation persistence failure was hidden.");
             }
             h.Coordinator.CancelShutdown();
+            Check(!h.Coordinator.ShutdownCancellationNeedsRetry);
             using var recovered = new AlarmCoordinator(h.Store, h.Scheduler, h.Power, new FakePlayback(), h.Activity);
             recovered.Recover(Now.AddMinutes(1)); Check(!recovered.Shutdown.IsPending);
         });
@@ -501,10 +544,47 @@ internal static class Program
             FindVisuals<Button>(window).Single(button => Equals(button.Content, "설정 저장")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             var saved = store.Load<AlarmSettings>("settings.json"); Equal(9, saved?.Hour); Equal(40, saved?.Minute); Check(saved?.AutoShutdownEnabled == true);
             Check(saved?.MaximizeWindowsVolume == true); Equal(AlarmVolumeAfterStop.SetZero, saved?.VolumeAfterStop);
+            var more = (Button)window.FindName("MoreButton");
+            more.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Check(more.ContextMenu.IsOpen); Equal(more, more.ContextMenu.PlacementTarget);
+            Equal(2, more.ContextMenu.Items.Count); more.ContextMenu.IsOpen = false;
+
+            // Project fixture states into the real view without registering tasks or powering off.
+            // Do not pump dispatcher timers while these view-only fixtures are applied.
+            void Capture(string name)
+            {
+                window.UpdateLayout();
+                var image = new RenderTargetBitmap((int)window.ActualWidth, (int)window.ActualHeight, 96, 96, PixelFormats.Pbgra32);
+                image.Render(window); var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(image));
+                using var output = File.Create(Path.Combine(_root, name)); encoder.Save(output);
+            }
+            var cancelWake = (Button)window.FindName("CancelWakeButton");
+            var cancelShutdown = (Button)window.FindName("CancelShutdownButton");
+            window.ApplyReservationStatus(ReservationStatus.Create(null, ShutdownMode.None, null));
             window.UpdateLayout();
-            var image = new RenderTargetBitmap((int)window.ActualWidth, (int)window.ActualHeight, 96, 96, PixelFormats.Pbgra32);
-            image.Render(window); var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(image));
-            using (var output = File.Create(Path.Combine(_root, "main-window.png"))) encoder.Save(output);
+            Check(!cancelWake.IsVisible); Check(!cancelShutdown.IsVisible); Capture("main-window.png");
+            var reserved = new AlarmSchedule { DueAt = Now.AddDays(1), Settings = new() { AutoShutdownEnabled = true } };
+            window.ApplyReservationStatus(ReservationStatus.Create(reserved, ShutdownMode.None, null));
+            ((ToggleButton)window.FindName("ShutdownToggle")).IsChecked = false;
+            window.UpdateLayout(); Check(cancelWake.IsVisible); Check(cancelShutdown.IsVisible);
+            Capture("main-window-reserved.png");
+
+            ((StackPanel)window.FindName("SettingsPanel")).IsEnabled = false;
+            window.Width = window.MinWidth; window.Height = window.MinHeight;
+            window.UpdateLayout();
+            var scroll = (ScrollViewer)window.FindName("SettingsScrollViewer");
+            var position = cancelShutdown.TranslatePoint(new Point(), window);
+            scroll.ScrollToBottom(); window.UpdateLayout();
+            Equal(position, cancelShutdown.TranslatePoint(new Point(), window));
+            Check(cancelShutdown.IsVisible && cancelShutdown.IsEnabled); Check(cancelWake.IsVisible && cancelWake.IsEnabled);
+            Check(position.Y > 0 && position.Y + cancelShutdown.ActualHeight < window.ActualHeight);
+            Check(!FindVisuals<Button>(window).Single(button => Equals(button.Content, "알람 설정 후 최대 절전")).IsEnabled);
+            Capture("main-window-reserved-minimum.png");
+            window.ApplyReservationStatus(ReservationStatus.Create(reserved with { Phase = AlarmPhase.Stopped }, ShutdownMode.Countdown, Now));
+            window.UpdateLayout(); Check(!cancelWake.IsVisible); Check(cancelShutdown.IsVisible && cancelShutdown.IsEnabled);
+            Capture("main-window-countdown.png");
+            window.ApplyReservationStatus(ReservationStatus.Create(null, ShutdownMode.None, null));
+            ((StackPanel)window.FindName("SettingsPanel")).IsEnabled = true;
             window.Close();
         });
         if (args.Contains("--volume-integration")) Run("real Windows master volume boosts, restores and sets zero without mute", () =>
