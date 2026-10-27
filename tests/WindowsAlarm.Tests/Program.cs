@@ -28,6 +28,15 @@ internal static class Program
             _publishedApp = Path.GetFullPath(published[publishedPrefix.Length..]);
         _root = Path.GetFullPath(args.FirstOrDefault(a => !a.StartsWith("--", StringComparison.Ordinal)) ?? Path.Combine("artifacts", "test-data", Guid.NewGuid().ToString("N")));
         Directory.CreateDirectory(_root);
+        Run("single-file relaunch preserves renamed EXE and excludes dotnet or test hosts", () =>
+        {
+            var directory = Path.Combine(_root, "공백 テスト");
+            var renamed = Path.Combine(directory, "아침 알람.exe");
+            Equal(renamed, AppExecutable.Resolve(renamed, true, Path.Combine(directory, "cache")));
+            Equal(Path.Combine(directory, "WindowsAlarm.exe"), AppExecutable.Resolve(renamed, false, directory));
+            Equal(Path.Combine(directory, "WindowsAlarm.exe"), AppExecutable.Resolve(Path.Combine(directory, "dotnet.exe"), true, directory));
+            Equal(Path.Combine(directory, "WindowsAlarm.exe"), AppExecutable.Resolve(null, true, directory));
+        });
         Run("alarm volume restores original level and mute; repeated stop is harmless", () =>
         {
             foreach (var muted in new[] { false, true })
@@ -538,7 +547,7 @@ internal static class Program
         var store = new AppStore(Path.Combine(_root, "scheduler-process", Guid.NewGuid().ToString("N")));
         var schedule = new AlarmSchedule { DueAt = DateTimeOffset.Now.AddMinutes(15), IsTest = true, ShutdownCancelled = true };
         store.Save("schedule.json", schedule);
-        var expectedExe = _publishedApp ?? Path.ChangeExtension(typeof(App).Assembly.Location, ".exe");
+        var expectedExe = _publishedApp ?? AppExecutable.GetPath();
         var scheduler = new TaskSchedulerWakeService(store.Root, expectedExe);
         dynamic? service = null; dynamic? folder = null; dynamic? task = null;
         var childIds = new HashSet<int>();

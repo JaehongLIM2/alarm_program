@@ -29,7 +29,9 @@ settings.json
 schedule.json
 logs/
 webview2/
+webview2-check/
 youtube-content/
+deployment-check.json
 *.log
 *.corrupt-*
 *.mp3

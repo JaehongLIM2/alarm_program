@@ -18,7 +18,7 @@ public sealed class TaskSchedulerWakeService : IWakeScheduler
     public TaskSchedulerWakeService(string dataRoot, string? executable = null)
     {
         _dataRoot = Path.GetFullPath(dataRoot);
-        _exe = executable ?? Path.ChangeExtension(typeof(App).Assembly.Location, ".exe");
+        _exe = executable ?? AppExecutable.GetPath();
         TaskName = $"WindowsAlarm-{UserSid}-{ProfileKey(_dataRoot)}";
     }
 

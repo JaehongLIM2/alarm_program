@@ -8,7 +8,7 @@ Windows 10/11용 개인 알람 프로그램입니다. **C# / .NET 10 LTS / WPF**
 
 빌드 환경: Windows 10 2004(빌드 19041) 이상 또는 Windows 11, **.NET 10 SDK**. [공식 다운로드](https://dotnet.microsoft.com/en-us/download/dotnet/10.0)에서 설치합니다. `global.json`은 안정 버전 .NET 10 SDK만 선택하며, 설치된 10.0 SDK 중 최신 기능 밴드를 허용합니다.
 
-`publish.cmd`가 만드는 Windows x64 배포본에는 **.NET 10 런타임이 포함**됩니다. 실행만 하는 PC에는 .NET SDK나 Desktop Runtime을 따로 설치할 필요가 없습니다. `dotnet run` 또는 빌드 출력 폴더를 직접 사용하는 개발 실행에는 .NET 10 SDK/Desktop Runtime이 필요합니다.
+`publish-single.cmd`는 **Windows x64용 EXE 하나**를 만듭니다. .NET 10 런타임, WPF, WinRT와 WebView2 로더를 포함하므로 실행 PC에 .NET SDK나 Desktop Runtime을 따로 설치할 필요가 없습니다. 기존 폴더형 배포도 `publish.cmd`로 만들 수 있습니다. `dotnet run` 등 개발 실행에는 .NET 10 SDK/Desktop Runtime이 필요합니다.
 
 내장 YouTube 재생에는 **Microsoft Edge WebView2 Runtime**도 필요합니다. Runtime이 없거나 초기화에 실패하면 로컬 음악으로 전환합니다. [Microsoft WebView2 배포 안내](https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/distribution)를 참고하세요. 개인 브라우저의 로그인·쿠키를 가져오지 않는 앱 전용 프로필을 사용합니다.
 
@@ -17,11 +17,13 @@ Windows 10/11용 개인 알람 프로그램입니다. **C# / .NET 10 LTS / WPF**
 ```powershell
 .\build.cmd
 .\test.cmd
-.\publish.cmd
-.\artifacts\app\WindowsAlarm.exe
+.\publish-single.cmd
+.\artifacts\single-file\WindowsAlarm.exe
 ```
 
-`build.cmd`는 솔루션 전체를 Release로 빌드하고, `publish.cmd`는 .NET 런타임과 실행에 필요한 파일을 `artifacts\app`에 모읍니다. 다른 폴더/PC로 옮길 때는 **app 폴더 전체**를 복사하세요. 실행 파일만 따로 복사하면 동작하지 않습니다. 이 폴더의 `WindowsAlarm.exe` 또는 프로젝트 루트의 `start-alarm.cmd`로 실행합니다. 예약 뒤 실행 폴더를 옮겼다면 앱에서 다시 예약하세요.
+단일 파일 배포는 **`artifacts\single-file\WindowsAlarm.exe` 하나만 복사**하면 됩니다. 실행 때 .NET이 필요한 네이티브 파일을 사용자 임시 캐시에 자동으로 준비하며, 설정·예약·로그·WebView2 프로필은 기존 `%LOCALAPPDATA%\WindowsAlarm`에 저장합니다. 선택한 로컬 MP3는 별도로 존재해야 합니다. EXE 파일명 변경과 공백·한글 경로도 지원합니다.
+
+`publish.cmd`의 폴더형 배포는 `artifacts\app` 전체를 복사해야 합니다. `start-alarm.cmd`는 단일 EXE가 있으면 우선 실행하며, 없으면 폴더형을 실행합니다. **알람을 예약한 뒤 EXE를 이동·이름 변경·삭제하면 Windows 작업이 이전 경로를 찾습니다.** 이동이나 이름 변경은 예약 전에 하거나, 변경 후 앱에서 다시 예약하세요.
 
 스크립트 없이도 사용할 수 있습니다.
 
@@ -30,6 +32,7 @@ dotnet build WindowsAlarm.sln -c Release
 dotnet run --project src/WindowsAlarm
 dotnet run --project tests/WindowsAlarm.Tests -c Release
 dotnet publish src/WindowsAlarm -c Release -r win-x64 --self-contained true -o artifacts/app -p:PublishSingleFile=false -p:PublishTrimmed=false -p:DebugSymbols=false -p:DebugType=None
+dotnet publish src/WindowsAlarm -c Release -r win-x64 --self-contained true -o artifacts/single-file-build -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:PublishTrimmed=false -p:EnableCompressionInSingleFile=true -p:DebugSymbols=false -p:DebugType=None
 ```
 
 CMD 스크립트는 .NET 도구 캐시를 프로젝트의 `artifacts` 아래에 두므로 PowerShell 실행 정책을 변경할 필요가 없습니다. `artifacts\dotnet10\dotnet.exe`가 있으면 해당 프로젝트 전용 SDK를 사용합니다. 그 외에는 설치된 SDK를 사용합니다. 전역 PATH와 기존 SDK 설치는 변경하지 않습니다.
@@ -39,6 +42,7 @@ CMD 스크립트는 .NET 도구 캐시를 프로젝트의 `artifacts` 아래에 
 ## 사용 방법
 
 .NET 10 전환 범위와 실제 검증 결과는 [NET10_MIGRATION.md](docs/NET10_MIGRATION.md)에 있습니다.
+단일 EXE의 포함 범위·실제 검증·제한 사항은 [SINGLE_FILE.md](docs/SINGLE_FILE.md)에 있습니다.
 
 1. 시/분, YouTube URL(선택), 로컬 MP3(권장)를 설정합니다.
 2. 자동 종료를 원하면 체크하고 알람 시작 이후 몇 분인지 입력합니다. 범위는 1~1440분입니다.

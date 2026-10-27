@@ -19,8 +19,8 @@ try {
     }
     $findings = [System.Collections.Generic.List[string]]::new()
     foreach ($file in $files) {
-        if ($file -match '[\r\n\t]' -or $file -match '(?i)(^|/)(?:artifacts|bin|obj|logs|webview2|youtube-content|\.ssh|\.aws|\.codex|\.agents)(/|$)' -or
-            $file -match '(?i)(^|/)(?:\.env(?:\..*)?|\.git-identity\.local\.json|settings\.json|schedule\.json)$' -or
+        if ($file -match '[\r\n\t]' -or $file -match '(?i)(^|/)(?:artifacts|bin|obj|logs|webview2|webview2-check|youtube-content|\.ssh|\.aws|\.codex|\.agents)(/|$)' -or
+            $file -match '(?i)(^|/)(?:\.env(?:\..*)?|\.git-identity\.local\.json|settings\.json|schedule\.json|deployment-check\.json)$' -or
             $file -match '(?i)\.(?:exe|dll|pdb|zip|7z|rar|pem|key|ppk|pfx|p12|snk|jks|keystore|gpg|asc|mp3|wav|log)$' -or $file -match '\.corrupt-') {
             $findings.Add('Sensitive or generated file: ' + $file); continue
         }

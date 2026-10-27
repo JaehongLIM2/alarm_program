@@ -21,6 +21,22 @@ public partial class App : Application
             var root = dataIndex >= 0 ? e.Args[dataIndex + 1]
                 : System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WindowsAlarm");
             _store = new AppStore(root);
+            if (e.Args.Contains("--deployment-check", StringComparer.Ordinal))
+            {
+                // Explicit opt-in packaging check: no alarm recovery, scheduling, volume or power changes.
+                ShutdownMode = System.Windows.ShutdownMode.OnExplicitShutdown;
+                _ = Dispatcher.InvokeAsync(async () =>
+                {
+                    try
+                    {
+                        var result = await DeploymentCheck.RunAsync(_store);
+                        _store.Save("deployment-check.json", result);
+                        Shutdown(result.Success ? 0 : 2);
+                    }
+                    catch (Exception ex) { _store.Log("Deployment check failed", ex); Shutdown(2); }
+                });
+                return;
+            }
             var wakeIndex = Array.IndexOf(e.Args, "--wake");
             if (wakeIndex >= 0)
             {
@@ -37,7 +53,7 @@ public partial class App : Application
                 // Keep the scheduler action short: WakeToRun otherwise holds the PC awake for the whole GUI lifetime.
                 // Release ownership before the child starts so it can become the persistent interactive instance.
                 _instance.Dispose(); _instance = null;
-                var launch = new ProcessStartInfo(Path.ChangeExtension(typeof(App).Assembly.Location, ".exe")) { UseShellExecute = true };
+                var launch = new ProcessStartInfo(AppExecutable.GetPath()) { UseShellExecute = true };
                 launch.ArgumentList.Add("--data-dir"); launch.ArgumentList.Add(_store.Root);
                 using var child = Process.Start(launch) ?? throw new InvalidOperationException("알람 화면을 실행할 수 없습니다.");
                 _store.Log("Scheduler launcher handed off to interactive alarm process");
