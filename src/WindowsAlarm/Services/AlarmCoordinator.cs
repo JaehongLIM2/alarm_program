@@ -163,8 +163,8 @@ public sealed class AlarmCoordinator : IDisposable
         }
         var removed = TryRemoveTask();
         if (!persisted || !removed)
-            Report($"Wake Timer 취소를 완료하지 못했습니다. {(!persisted ? "취소 상태를 파일에 저장하지 못했습니다. " : "")}{(!removed ? "Windows 예약 작업을 삭제하지 못했습니다. " : "")}로그와 저장 경로를 확인하고 앱을 닫기 전에 취소를 다시 누르세요.");
-        else Report("Wake Timer를 취소했습니다.");
+            Report($"알람 예약 취소를 완료하지 못했습니다. {(!persisted ? "취소 상태를 파일에 저장하지 못했습니다. " : "")}{(!removed ? "Windows 예약 작업을 삭제하지 못했습니다. " : "")}로그와 저장 경로를 확인하고 앱을 닫기 전에 취소를 다시 누르세요.");
+        else Report("알람 예약을 취소했습니다.");
     }
 
     public void CancelShutdown(string reason = "사용자가 취소")

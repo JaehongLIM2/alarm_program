@@ -13,8 +13,8 @@
                   Margin="0,4" Click="Hibernate_Click" />
         </Grid>
         <WrapPanel>
-          <Button Content="Wake Timer 취소" Click="CancelWake_Click" Style="{StaticResource CompactButtonStyle}" />
-          <Button Content="예약된 자동 종료 취소" Click="CancelShutdown_Click" Style="{StaticResource CompactButtonStyle}" />
+          <Button Content="알람 예약 취소" Click="CancelWake_Click" Style="{StaticResource CompactButtonStyle}" />
+          <Button Content="PC 자동 종료 취소" Click="CancelShutdown_Click" Style="{StaticResource CompactButtonStyle}" />
           <Button Content="로그 폴더" Click="Logs_Click" Style="{StaticResource CompactButtonStyle}" />
           <Button Content="전원 상태 확인" Click="PowerInfo_Click" Style="{StaticResource CompactButtonStyle}" />
           <Button Content="글꼴 라이선스" Click="FontLicense_Click" Style="{StaticResource CompactButtonStyle}" />
