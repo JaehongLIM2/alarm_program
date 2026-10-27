@@ -21,10 +21,10 @@ try {
     # Only these unmodified, OFL-licensed fonts from the supplied archive are permitted as binary source assets.
     # Compare Git blob IDs for both working files and the exact index content used by a commit.
     $approvedFontBlobs = @{
-        'src/WindowsAlarm/Assets/Fonts/NanumSquareR.ttf' = '956429775264cb9523b876fc6540a57b04c20e19'
-        'src/WindowsAlarm/Assets/Fonts/NanumSquareB.ttf' = '7711cac68c79b6366fe4f4591dec41040b15ae11'
-        'src/WindowsAlarm/Assets/Fonts/NanumSquareEB.ttf' = 'cb107b682499a6b3486e58dfe1a9f70a0920f78e'
-        'src/WindowsAlarm/Assets/Fonts/NanumSquareL.ttf' = '285681b8cc22b0614f0ae5fcdb91770f21e18102'
+        'src/WindowsAlarm/Assets/Fonts/NanumSquareR.otf' = '305829d6bb39851727b9c712ca30ae4f894b4363'
+        'src/WindowsAlarm/Assets/Fonts/NanumSquareB.otf' = '944742a691e92ce739c975c3f807a68c7e77903d'
+        'src/WindowsAlarm/Assets/Fonts/NanumSquareEB.otf' = '8fda57675c8b09c59435d7cf0137adf43ee93aef'
+        'src/WindowsAlarm/Assets/Fonts/NanumSquareL.otf' = 'aa0f117ddc94e38aa1e16d01825a4596e6e0a9f1'
     }
     foreach ($file in $files) {
         if ($file -match '[\r\n\t]' -or $file -match '(?i)(^|/)(?:artifacts|bin|obj|logs|webview2|webview2-check|youtube-content|\.ssh|\.aws|\.codex|\.agents)(/|$)' -or

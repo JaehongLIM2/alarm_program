@@ -30,8 +30,8 @@ internal static class DeploymentCheck
         {
             var font = Application.Current.TryFindResource("AppFontFamily") as System.Windows.Media.FontFamily
                 ?? throw new InvalidOperationException("Missing application font resource.");
-            foreach (var (name, weight) in new[] { ("NanumSquareL.ttf", FontWeights.Light), ("NanumSquareR.ttf", FontWeights.Normal),
-                ("NanumSquareB.ttf", FontWeights.Bold), ("NanumSquareEB.ttf", FontWeights.ExtraBold) })
+            foreach (var (name, weight) in new[] { ("NanumSquareL.otf", FontWeights.Light), ("NanumSquareR.otf", FontWeights.Normal),
+                ("NanumSquareB.otf", FontWeights.Bold), ("NanumSquareEB.otf", FontWeights.ExtraBold) })
             {
                 var face = new System.Windows.Media.Typeface(font, FontStyles.Normal, weight, FontStretches.Normal);
                 if (!face.TryGetGlyphTypeface(out var glyph) || glyph.Weight != weight ||

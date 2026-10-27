@@ -4,7 +4,7 @@
 
 ## 적용 범위
 
-- 제공된 `nanum-square.zip`의 나눔스퀘어 TTF 4종(Light·Regular·Bold·ExtraBold)을 수정 없이 WPF 리소스로 포함합니다. Windows 글꼴 설치나 런타임의 네트워크 다운로드가 필요하지 않습니다.
+- 제공된 `nanum-square.zip`의 나눔스퀘어 OTF 4종(Light·Regular·Bold·ExtraBold)을 수정 없이 WPF 리소스로 포함합니다. Windows 글꼴 설치나 런타임의 네트워크 다운로드가 필요하지 않습니다.
 - 버튼·입력창·선택 상자는 10px, 설정 카드는 16px 모서리를 사용합니다. 체크박스·선택 목록·포커스와 비활성 상태도 공통 스타일을 사용합니다.
 - 메인 창, 종료 확인 창, YouTube 창의 앱 소유 영역에 같은 글꼴을 적용합니다. Windows가 그리는 제목 표시줄과 YouTube 콘텐츠 자체의 글꼴은 별도입니다.
 - 설정 저장·알람 테스트·최대 절전 버튼을 하단에 고정합니다. 기존 설정 패널과 동일한 활성 상태를 바인딩하여 알람 중이나 자동 종료 확인 중 설정 동작이 다시 활성화되지 않게 합니다.
@@ -29,7 +29,13 @@
 
 글자 크기에 맞춰 입력창과 일반 버튼의 최소 높이는 44로, 카드 안쪽 여백은 20으로 조정했습니다. 제목과 본문의 크기 차이도 줄였습니다.
 
-앱의 `TextFormattingMode`는 `Ideal`, `TextRenderingMode`는 `Grayscale`로 지정해 서브픽셀 색 번짐을 줄입니다. Windows의 전역 ClearType·디스플레이 배율·글꼴 설정은 변경하지 않습니다. [WPF 글꼴 크기 단위](https://learn.microsoft.com/en-us/dotnet/api/system.windows.documents.textelement.fontsize), [텍스트 렌더링 모드](https://learn.microsoft.com/en-us/dotnet/api/system.windows.media.textrenderingmode)
+첫 조정에서는 `Ideal`·`Grayscale`을 적용했지만, 이후 사용자 스크린샷을 4배로 확대해 획의 명암이 고르지 않고 일부가 끊겨 보이는 증상을 다시 확인했습니다. 크기·배치만으로 설명할 수 없었으며, 글꼴 파일 손상으로 단정하지 않았습니다.
+
+동일 압축 파일의 원본 TTF·OTF를 14·15·16 DIP와 같은 문구로 비교했습니다. `Ideal/Display`와 `Grayscale/ClearType`의 8개 조합을 실제 WPF 진단 창에서 그리고 해당 창만 Win32 `PrintWindow`로 캡처했습니다. 비교 창의 DPI는 96이었습니다. 이 환경에서 더 또렷하게 보인 **OTF·Ideal·ClearType**을 채택하고 정적 텍스트의 `TextHintingMode=Fixed`, 레이아웃 반올림·장치 픽셀 맞춤을 적용했습니다. 이전 단계에서 맞춘 글자 크기와 배치는 유지합니다.
+
+OTF의 내부 글꼴 이름은 `NanumSquareOTF`입니다. 글꼴 자체를 수정하거나 다른 글꼴로 대체하지 않습니다. 위 비교는 특정 환경의 시각 확인이며, 모든 모니터에서의 선호나 모든 크기의 출력을 보장하는 결과는 아닙니다. Windows의 전역 ClearType·디스플레이 배율·글꼴 설정도 변경하지 않습니다.
+
+원본 확대와 설정별 비교·진단 코드는 Git 제외 대상인 `artifacts/font-rendering-review`에 있습니다. [WPF 글꼴 크기 단위](https://learn.microsoft.com/en-us/dotnet/api/system.windows.documents.textelement.fontsize), [레이아웃 방식](https://learn.microsoft.com/en-us/dotnet/api/system.windows.media.textformattingmode), [텍스트 렌더링 모드](https://learn.microsoft.com/en-us/dotnet/api/system.windows.media.textrenderingmode), [정적 텍스트 힌팅](https://learn.microsoft.com/en-us/dotnet/api/system.windows.media.texthintingmode)
 
 ## 검증
 
