@@ -3,6 +3,9 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Automation.Peers;
+using System.Windows.Automation.Provider;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
@@ -394,11 +397,45 @@ internal static class Program
                 packet.Replace("AQABAA==", "AQ=="), packet.Replace("\"current\"", "12"), new string('x', 24001) })
                 Check(!YouTubePcmMessage.TryRead(invalid, "current", out _, out _, out _));
         });
+        Run("power readiness requires S4 and full hibernation, not just fast startup", () =>
+        {
+            var caps = new WindowsPowerService.PowerCapabilities { SystemS4 = 1, HiberFilePresent = 1, HiberFileType = 2, RtcWake = 5 };
+            var snapshot = new PowerStatusSnapshot(caps, true, 1, 1, []);
+            Check(PowerReadinessReport.Create(snapshot).IsReady);
+            caps.HiberFileType = 1;
+            var reduced = PowerReadinessReport.Create(snapshot with { Capabilities = caps });
+            Check(!reduced.IsReady); Check(reduced.Checks.Any(check => check.Value == "빠른 시작 전용"));
+            caps.HiberFileType = 2; caps.SystemS4 = 0;
+            Equal(PowerCheckState.NeedsAttention, PowerReadinessReport.Create(snapshot with { Capabilities = caps }).State);
+        });
+        Run("power readiness selects the active AC or battery policy and rejects important-only timers", () =>
+        {
+            var caps = new WindowsPowerService.PowerCapabilities { SystemS4 = 1, HiberFilePresent = 1, HiberFileType = 2, RtcWake = 5 };
+            var snapshot = new PowerStatusSnapshot(caps, true, 1, 2, []);
+            Check(PowerReadinessReport.Create(snapshot).IsReady);
+            Equal(PowerCheckState.NeedsAttention, PowerReadinessReport.Create(snapshot with { OnAcPower = false }).State);
+            Equal(PowerCheckState.NeedsAttention, PowerReadinessReport.Create(snapshot with { AcWakePolicy = 0 }).State);
+            Equal(PowerCheckState.Unknown, PowerReadinessReport.Create(snapshot with { OnAcPower = null }).State);
+        });
+        Run("power readiness never presents unknown readings or S3-only RTC as ready", () =>
+        {
+            var caps = new WindowsPowerService.PowerCapabilities { SystemS4 = 1, HiberFilePresent = 1, HiberFileType = 2, RtcWake = 5 };
+            var snapshot = new PowerStatusSnapshot(caps, true, 1, 1, []);
+            Equal(PowerCheckState.Unknown, PowerReadinessReport.Create(snapshot with { Capabilities = null }).State);
+            Equal(PowerCheckState.Unknown, PowerReadinessReport.Create(snapshot with { AcWakePolicy = null }).State);
+            Equal(PowerCheckState.Unknown, PowerReadinessReport.Create(snapshot with { AcWakePolicy = 99 }).State);
+            caps.RtcWake = 0;
+            Equal(PowerCheckState.Unknown, PowerReadinessReport.Create(snapshot with { Capabilities = caps }).State);
+            caps.RtcWake = 4;
+            Equal(PowerCheckState.NeedsAttention, PowerReadinessReport.Create(snapshot with { Capabilities = caps }).State);
+        });
         Run("native struct layout and read-only Windows diagnostics", () =>
         {
             Equal(76, Marshal.SizeOf<WindowsPowerService.PowerCapabilities>());
             Equal(22, Marshal.OffsetOf<WindowsPowerService.PowerCapabilities>(nameof(WindowsPowerService.PowerCapabilities.HiberFileType)).ToInt32());
             Console.WriteLine("  " + new WindowsPowerService().GetDiagnostics());
+            var powerReport = PowerReadinessReport.Create(new WindowsPowerService().ReadStatus());
+            Console.WriteLine("  " + powerReport.Summary + " · " + powerReport.PowerSource);
             var input = new WindowsActivityMonitor().Read(); Check(input.Reliable); Check(input.IdleTime >= TimeSpan.Zero);
             Console.WriteLine($"  Input API reliable={input.Reliable}, safe console={input.SafeSession}");
         });
@@ -423,6 +460,24 @@ internal static class Program
             var window = new ShutdownWindow(controller); window.Refresh(Now); window.Show(); Pump(TimeSpan.FromMilliseconds(100)); window.Close();
             Equal(ShutdownMode.Cancelled, controller.Mode); Equal(0, power.ShutdownCalls);
         });
+        Run("power status window renders, refreshes and reports query failure without changing power", () =>
+        {
+            var caps = new WindowsPowerService.PowerCapabilities { SystemS4 = 1, HiberFilePresent = 1, HiberFileType = 2, RtcWake = 5 };
+            var calls = 0;
+            var window = new PowerStatusWindow(() => ++calls == 1 ? new(caps, true, 1, 1, []) : throw new InvalidOperationException("query denied"));
+            window.Show(); Pump(TimeSpan.FromMilliseconds(100));
+            Check(((PowerReadinessReport)window.DataContext).IsReady);
+            Check(FindVisuals<TextBox>(window).Any(text => text.IsReadOnly && text.Text.Contains("powercfg /hibernate on")));
+            window.UpdateLayout();
+            var image = new RenderTargetBitmap((int)window.ActualWidth, (int)window.ActualHeight, 96, 96, PixelFormats.Pbgra32);
+            image.Render(window); var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(image));
+            using (var output = File.Create(Path.Combine(_root, "power-status-window.png"))) encoder.Save(output);
+            FindVisuals<Button>(window).Single(button => Equals(button.Content, "새로고침")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            var failed = (PowerReadinessReport)window.DataContext;
+            Equal(2, calls); Equal(PowerCheckState.Unknown, failed.State); Check(failed.Diagnostics.Contains("query denied"));
+            Check(FindVisuals<Button>(window).Any(button => button.IsCancel && button.IsDefault));
+            window.Close();
+        });
         Run("main WPF window renders, saves edited settings and closes safely", () =>
         {
             var store = new AppStore(Path.Combine(_root, "ui"));
@@ -431,9 +486,17 @@ internal static class Program
             ((ComboBox)window.FindName("HourBox")).SelectedIndex = 9;
             ((ComboBox)window.FindName("MinuteBox")).SelectedIndex = 40;
             ((TextBox)window.FindName("YouTubeBox")).Text = "https://youtu.be/M7lc1UVf-VE";
-            ((CheckBox)window.FindName("ShutdownCheck")).IsChecked = true;
+            var shutdownToggle = (ToggleButton)window.FindName("ShutdownToggle");
+            shutdownToggle.IsChecked = false;
+            ((IToggleProvider)new ToggleButtonAutomationPeer(shutdownToggle).GetPattern(PatternInterface.Toggle)).Toggle();
+            Check(shutdownToggle.IsChecked == true);
             ((TextBox)window.FindName("ShutdownMinutesBox")).Text = "45";
-            ((CheckBox)window.FindName("MaxVolumeCheck")).IsChecked = true;
+            var volumeToggle = (ToggleButton)window.FindName("MaxVolumeToggle"); volumeToggle.IsChecked = true;
+            var volumeProvider = (IToggleProvider)new ToggleButtonAutomationPeer(volumeToggle).GetPattern(PatternInterface.Toggle);
+            volumeProvider.Toggle(); Pump(TimeSpan.FromMilliseconds(20));
+            Check(volumeToggle.IsChecked == false); Check(!((ComboBox)window.FindName("VolumeAfterStopBox")).IsEnabled);
+            volumeProvider.Toggle(); Pump(TimeSpan.FromMilliseconds(20));
+            Check(volumeToggle.IsChecked == true); Check(((ComboBox)window.FindName("VolumeAfterStopBox")).IsEnabled);
             ((ComboBox)window.FindName("VolumeAfterStopBox")).SelectedIndex = 1;
             FindVisuals<Button>(window).Single(button => Equals(button.Content, "설정 저장")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             var saved = store.Load<AlarmSettings>("settings.json"); Equal(9, saved?.Hour); Equal(40, saved?.Minute); Check(saved?.AutoShutdownEnabled == true);

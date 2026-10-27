@@ -35,7 +35,7 @@
 
 기본 62개 통과. 이름 변경·단일 파일 실행 경로 회귀 검증을 추가했습니다. 전체 통합 검증은 64개 통과·5개 실패입니다. 기존 .NET 8/10 폴더형 비교에서 확인한 오디오 장치/재생과 오디오 초기화에 영향을 받는 WebView2 통합 실패 5개와 같은 항목입니다. 실패를 무시하거나 성공으로 바꾸지 않습니다.
 
-실제 S4 진입/복귀, 잠금 화면의 MP3·YouTube 가청 출력, 실제 종료는 이번 작업에서 수행하지 않았습니다. 단일 EXE에서 실제 WebView2 연결이 통과한 결과는 오디오 출력 성공을 뜻하지 않습니다. 집 PC에서 2분 뒤 S4 테스트로 다시 확인해야 합니다.
+실제 S4 진입/복귀, 잠금 화면의 MP3·YouTube 가청 출력, 실제 종료는 이번 작업에서 수행하지 않았습니다. 단일 EXE에서 실제 WebView2 연결이 통과한 결과는 오디오 출력 성공을 뜻하지 않습니다. 집 PC에서 알람 시간을 현재보다 2~3분 뒤로 설정하고 일반 최대 절전 버튼으로 다시 확인해야 합니다.
 
 검증 로그: `artifacts/single-file-build.txt`, `artifacts/single-file-publish.txt`, `artifacts/single-file-tests.txt`. EXE 단독 진단은 `artifacts/single-file-check/deployment-check.json`에 있습니다. 이 산출물은 Git에서 제외합니다.
 

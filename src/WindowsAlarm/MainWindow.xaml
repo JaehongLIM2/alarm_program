@@ -25,8 +25,7 @@
     </Border>
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
       <StackPanel Margin="24">
-        <TextBlock Text="Windows Alarm" FontSize="28" FontWeight="Bold" />
-        <TextBlock Text="S4 최대 절전 · 로컬 백업 알람 · 안전한 자동 종료" Margin="0,8,0,20" Style="{StaticResource HelpTextStyle}" />
+        <TextBlock Text="Windows Alarm" FontSize="28" FontWeight="Bold" Margin="0,0,0,20" />
         <StackPanel x:Name="SettingsPanel">
           <Border Style="{StaticResource CardStyle}">
             <StackPanel>
@@ -57,15 +56,17 @@
 
           <Border Style="{StaticResource CardStyle}">
             <StackPanel>
-              <CheckBox x:Name="MaxVolumeCheck" Content="알람 중 Windows 볼륨을 100으로 설정 (음소거 해제)" Margin="0,0,0,18" />
+              <ToggleButton x:Name="MaxVolumeToggle" Content="알람 중 Windows 볼륨을 100으로 설정 (음소거 해제)"
+                            Style="{StaticResource ToggleSwitchStyle}" AutomationProperties.Name="알람 중 Windows 볼륨을 100으로 설정" Margin="0,0,0,18" />
               <TextBlock Text="알람 종료 후 볼륨" Style="{StaticResource FieldLabelStyle}" />
               <ComboBox x:Name="VolumeAfterStopBox" HorizontalAlignment="Stretch" AutomationProperties.Name="알람 종료 후 볼륨"
-                        IsEnabled="{Binding IsChecked, ElementName=MaxVolumeCheck}">
+                        IsEnabled="{Binding IsChecked, ElementName=MaxVolumeToggle}">
                 <ComboBoxItem Content="원래 볼륨과 음소거 상태로 복원" />
                 <ComboBoxItem Content="볼륨 0으로 변경 (음소거하지 않음)" />
               </ComboBox>
               <Border Height="1" Background="#F4F4F5" Margin="0,22" />
-              <CheckBox x:Name="ShutdownCheck" Content="자동 종료 사용" Margin="0,0,0,12" />
+              <ToggleButton x:Name="ShutdownToggle" Content="자동 종료 사용" Style="{StaticResource ToggleSwitchStyle}"
+                            AutomationProperties.Name="자동 종료 사용" Margin="0,0,0,12" />
               <WrapPanel>
                 <TextBlock Text="알람 시작 후" VerticalAlignment="Center" Margin="0,0,8,0" />
                 <TextBox x:Name="ShutdownMinutesBox" Width="80" MaxLength="4" AutomationProperties.Name="자동 종료까지 분" />
@@ -74,10 +75,6 @@
             </StackPanel>
           </Border>
 
-          <WrapPanel Margin="0,0,0,16">
-            <Button Content="2분 뒤 예약 (절전 안 함)" Click="WakeTest_Click" />
-            <Button Content="2분 뒤 예약 후 S4 테스트" Click="S4Test_Click" />
-          </WrapPanel>
         </StackPanel>
 
         <Border x:Name="AlarmPanel" Visibility="Collapsed" Style="{StaticResource CardStyle}"

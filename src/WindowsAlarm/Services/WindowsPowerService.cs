@@ -31,6 +31,43 @@ public sealed class WindowsPowerService : IPowerService
                $"전체 파일={caps.HiberFileType == 2}, RTC Wake 지원 하한={PowerStateName(caps.RtcWake)}, Wake Timer 설정={policy?.ToString() ?? "확인 불가"}";
     }
 
+    // Read-only snapshot for the settings dialog. Query failures remain unknown, never "ready".
+    // Keep the established hibernate validation and power-control path independent of this UI query.
+    public PowerStatusSnapshot ReadStatus()
+    {
+        PowerCapabilities? capabilities = null;
+        bool? onAcPower = null;
+        uint? acPolicy = null, dcPolicy = null;
+        var errors = new List<string>();
+        try { capabilities = ReadCapabilities(); }
+        catch (Exception ex) { errors.Add("최대 절전 정보: " + ex.Message); }
+        if (GetSystemPowerStatus(out var power))
+        {
+            onAcPower = power.AcLineStatus switch { 1 => true, 0 => false, _ => null };
+            if (onAcPower is null) errors.Add("Windows가 현재 전원 공급 상태를 알 수 없다고 보고했습니다.");
+        }
+        else errors.Add("현재 전원 공급 상태를 읽지 못했습니다.");
+
+        var error = PowerGetActiveScheme(IntPtr.Zero, out var memory);
+        try
+        {
+            if (error != 0) errors.Add("현재 전원 계획: " + new Win32Exception((int)error).Message);
+            else if (memory == IntPtr.Zero) errors.Add("현재 전원 계획 정보를 받지 못했습니다.");
+            else
+            {
+                var scheme = Marshal.PtrToStructure<Guid>(memory);
+                var subgroup = new Guid("238c9fa8-0aad-41ed-83f4-97be242c8f20");
+                var setting = new Guid("bd3b718a-0680-4d9d-8ab2-e1d2b4ac806d");
+                var acError = PowerReadACValueIndex(IntPtr.Zero, ref scheme, ref subgroup, ref setting, out var ac);
+                var dcError = PowerReadDCValueIndex(IntPtr.Zero, ref scheme, ref subgroup, ref setting, out var dc);
+                if (acError == 0) acPolicy = ac; else errors.Add("전원 연결 타이머: " + new Win32Exception((int)acError).Message);
+                if (dcError == 0) dcPolicy = dc; else errors.Add("배터리 타이머: " + new Win32Exception((int)dcError).Message);
+            }
+        }
+        finally { if (error == 0 && memory != IntPtr.Zero) LocalFree(memory); }
+        return new(capabilities, onAcPower, acPolicy, dcPolicy, errors);
+    }
+
     private static string PowerStateName(int state) => state switch { 1 => "S0", 2 => "S1", 3 => "S2", 4 => "S3", 5 => "S4", 6 => "S5", _ => "확인 불가" };
 
     public void EnsureHibernateAvailable()

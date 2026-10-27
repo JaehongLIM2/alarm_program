@@ -1,0 +1,67 @@
+<Window x:Class="WindowsAlarm.PowerStatusWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="전원 상태 및 설정 안내"
+        Width="660" Height="800" MinWidth="540" MinHeight="500" Style="{StaticResource AppWindowStyle}"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
+  <DockPanel>
+    <Border DockPanel.Dock="Bottom" Background="White" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,1,0,0" Padding="20,12">
+      <WrapPanel HorizontalAlignment="Right">
+        <Button Content="전원 옵션 열기" Click="OpenPowerOptions_Click" />
+        <Button Content="새로고침" Click="Refresh_Click" />
+        <Button Content="닫기" Click="Close_Click" IsDefault="True" IsCancel="True" Margin="0,4,0,4" Style="{StaticResource PrimaryButtonStyle}" />
+      </WrapPanel>
+    </Border>
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+      <StackPanel Margin="24">
+        <TextBlock Text="전원 상태 및 설정 안내" FontSize="24" FontWeight="Bold" Margin="0,0,0,16" />
+        <Border Style="{StaticResource CardStyle}" Background="#EFF6FF" BorderBrush="#BFDBFE" Padding="16">
+          <StackPanel>
+            <TextBlock Text="{Binding Summary}" FontSize="17" FontWeight="Bold" />
+            <TextBlock Text="{Binding PowerSource}" Margin="0,8,0,4" />
+            <TextBlock Text="{Binding ReadAt}" Style="{StaticResource HelpTextStyle}" />
+          </StackPanel>
+        </Border>
+        <ItemsControl ItemsSource="{Binding Checks}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate>
+              <Border Style="{StaticResource CardStyle}" Padding="16" Margin="0,0,0,12">
+                <StackPanel>
+                  <DockPanel Margin="0,0,0,8">
+                  <TextBlock DockPanel.Dock="Right" Text="{Binding Value}" FontSize="15" FontWeight="Bold" Margin="12,0,0,0" MaxWidth="250" TextWrapping="Wrap">
+                    <TextBlock.Style>
+                      <Style TargetType="TextBlock">
+                        <Setter Property="Foreground" Value="#B45309" />
+                        <Style.Triggers>
+                          <DataTrigger Binding="{Binding IsReady}" Value="True"><Setter Property="Foreground" Value="#15803D" /></DataTrigger>
+                          <DataTrigger Binding="{Binding IsUnknown}" Value="True"><Setter Property="Foreground" Value="#62626A" /></DataTrigger>
+                        </Style.Triggers>
+                      </Style>
+                    </TextBlock.Style>
+                  </TextBlock>
+                  <TextBlock Text="{Binding Title}" FontSize="15" FontWeight="Bold" />
+                  </DockPanel>
+                  <TextBlock Text="{Binding Explanation}" Style="{StaticResource HelpTextStyle}" />
+                </StackPanel>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <Border Style="{StaticResource CardStyle}" Padding="16">
+          <StackPanel>
+            <TextBlock Text="필요한 설정과 변경 방법" FontSize="16" FontWeight="Bold" Margin="0,0,0,12" />
+            <TextBlock Text="최대 절전이 꺼져 있거나 전체 파일이 아닐 때" FontSize="15" FontWeight="Bold" />
+            <TextBlock Text="관리자 터미널에서 아래 명령을 실행한 뒤 '새로고침'을 누르세요." Style="{StaticResource HelpTextStyle}" Margin="0,6,0,8" />
+            <TextBox Text="powercfg /hibernate on&#10;powercfg /h /type full&#10;powercfg /a" IsReadOnly="True" TextWrapping="NoWrap" VerticalContentAlignment="Top" AutomationProperties.Name="최대 절전 설정 명령" />
+            <TextBlock Text="예약 복귀 타이머 켜기" FontSize="15" FontWeight="Bold" Margin="0,18,0,6" />
+            <TextBlock Text="전원 옵션 → 사용 중인 전원 관리 옵션의 설정 변경 → 고급 전원 관리 옵션 설정 변경 → 절전 → 절전 모드 해제 타이머 허용 → 사용" Style="{StaticResource HelpTextStyle}" />
+            <TextBlock Text="전원 연결과 배터리 항목이 있으면 사용하는 쪽을 각각 '사용'으로 설정하세요. 항목이 보이지 않으면 PC 제조사 안내와 Windows 전원 정책을 확인하세요." Style="{StaticResource HelpTextStyle}" Margin="0,8,0,0" />
+          </StackPanel>
+        </Border>
+        <TextBlock Text="로그인한 상태에서 최대 절전을 사용하세요. 화면 잠금은 괜찮지만, 로그아웃하거나 재부팅 후 로그인하지 않은 상태에서는 음악을 재생할 수 없습니다." Style="{StaticResource HelpTextStyle}" Margin="0,0,0,12" />
+        <TextBlock Text="이 화면은 상태를 읽어서 안내합니다. 앱이 전원 계획·최대 절전·BIOS 설정을 자동으로 바꾸지는 않습니다." Style="{StaticResource HelpTextStyle}" Margin="0,0,0,12" />
+        <Expander Header="진단 세부 정보">
+          <TextBox Text="{Binding Diagnostics}" IsReadOnly="True" TextWrapping="Wrap" FontSize="13" Margin="0,10,0,0" />
+        </Expander>
+      </StackPanel>
+    </ScrollViewer>
+  </DockPanel>
+</Window>

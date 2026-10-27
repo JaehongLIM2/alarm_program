@@ -46,9 +46,9 @@ public partial class MainWindow : Window
         MinuteBox.SelectedIndex = Math.Clamp(settings.Minute, 0, 59);
         YouTubeBox.Text = settings.YouTubeUrl;
         MusicBox.Text = settings.LocalMusicPath;
-        MaxVolumeCheck.IsChecked = settings.MaximizeWindowsVolume;
+        MaxVolumeToggle.IsChecked = settings.MaximizeWindowsVolume;
         VolumeAfterStopBox.SelectedIndex = settings.VolumeAfterStop == AlarmVolumeAfterStop.SetZero ? 1 : 0;
-        ShutdownCheck.IsChecked = settings.AutoShutdownEnabled;
+        ShutdownToggle.IsChecked = settings.AutoShutdownEnabled;
         ShutdownMinutesBox.Text = settings.ShutdownAfterMinutes.ToString();
         StatusText.Text = _store.LoadWarning ?? "설정을 저장하고 알람을 테스트하세요.";
         Loaded += (_, _) => RunUi(() => { _coordinator.Recover(); _clock.Start(); });
@@ -70,8 +70,8 @@ public partial class MainWindow : Window
         {
             Hour = HourBox.SelectedIndex, Minute = MinuteBox.SelectedIndex,
             YouTubeUrl = YouTubeBox.Text.Trim(), LocalMusicPath = MusicBox.Text.Trim(),
-            AutoShutdownEnabled = ShutdownCheck.IsChecked == true, ShutdownAfterMinutes = minutes,
-            MaximizeWindowsVolume = MaxVolumeCheck.IsChecked == true,
+            AutoShutdownEnabled = ShutdownToggle.IsChecked == true, ShutdownAfterMinutes = minutes,
+            MaximizeWindowsVolume = MaxVolumeToggle.IsChecked == true,
             VolumeAfterStop = VolumeAfterStopBox.SelectedIndex == 1 ? AlarmVolumeAfterStop.SetZero : AlarmVolumeAfterStop.RestorePrevious
         };
         if (settings.Validate() is { } error) throw new InvalidOperationException(error);
@@ -114,19 +114,21 @@ public partial class MainWindow : Window
     });
     private void PowerInfo_Click(object sender, RoutedEventArgs e) => RunUi(() =>
     {
-        var info = new WindowsPowerService().GetDiagnostics(); _store.Log(info);
-        MessageBox.Show(this, info + "\n\n실제 S4 Wake는 하드웨어·펌웨어·전원 공급 조건에 따라 달라집니다. 2분 S4 테스트로 확인하세요.", "전원 상태");
+        var power = new WindowsPowerService();
+        new PowerStatusWindow(() =>
+        {
+            var snapshot = power.ReadStatus();
+            _store.Log(PowerReadinessReport.Create(snapshot).Diagnostics);
+            return snapshot;
+        }) { Owner = this }.ShowDialog();
     });
     private void Test_Click(object sender, RoutedEventArgs e) => RunUi(() => _coordinator.TestAlarm(ReadSettings()));
-    private void Arm(bool hibernate, bool test) => RunUi(() =>
+    private void Hibernate_Click(object sender, RoutedEventArgs e) => RunUi(() =>
     {
         var settings = ReadSettings();
-        var due = test ? DateTimeOffset.Now.AddMinutes(2) : AlarmTiming.NextOccurrence(settings.Hour, settings.Minute, DateTimeOffset.Now, TimeZoneInfo.Local);
-        _coordinator.Arm(settings, due, hibernate, test);
+        var due = AlarmTiming.NextOccurrence(settings.Hour, settings.Minute, DateTimeOffset.Now, TimeZoneInfo.Local);
+        _coordinator.Arm(settings, due, true, false);
     });
-    private void Hibernate_Click(object sender, RoutedEventArgs e) => Arm(true, false);
-    private void WakeTest_Click(object sender, RoutedEventArgs e) => Arm(false, true);
-    private void S4Test_Click(object sender, RoutedEventArgs e) => Arm(true, true);
     private void Stop_Click(object sender, RoutedEventArgs e) => RunUi(_coordinator.StopAlarm);
     private void CancelWake_Click(object sender, RoutedEventArgs e) => RunUi(_coordinator.CancelWake);
     private void CancelShutdown_Click(object sender, RoutedEventArgs e) => RunUi(() => _coordinator.CancelShutdown());

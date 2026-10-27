@@ -5,13 +5,23 @@
 ## 적용 범위
 
 - 제공된 `nanum-square.zip`의 나눔스퀘어 OTF 4종(Light·Regular·Bold·ExtraBold)을 수정 없이 WPF 리소스로 포함합니다. Windows 글꼴 설치나 런타임의 네트워크 다운로드가 필요하지 않습니다.
-- 버튼·입력창·선택 상자는 10px, 설정 카드는 16px 모서리를 사용합니다. 체크박스·선택 목록·포커스와 비활성 상태도 공통 스타일을 사용합니다.
+- 버튼·입력창·선택 상자는 10px, 설정 카드는 16px 모서리를 사용합니다. 토글·선택 목록·포커스와 비활성 상태도 공통 스타일을 사용합니다.
 - 메인 창, 종료 확인 창, YouTube 창의 앱 소유 영역에 같은 글꼴을 적용합니다. Windows가 그리는 제목 표시줄과 YouTube 콘텐츠 자체의 글꼴은 별도입니다.
 - 설정 저장·알람 테스트·최대 절전 버튼을 하단에 고정합니다. 기존 설정 패널과 동일한 활성 상태를 바인딩하여 알람 중이나 자동 종료 확인 중 설정 동작이 다시 활성화되지 않게 합니다.
-- 알람 상태·정지 버튼과 Wake Timer 취소·자동 종료 취소·로그·전원 확인·S4 테스트 동작을 유지합니다.
+- 알람 상태·정지 버튼과 Wake Timer 취소·자동 종료 취소·로그·알람 테스트 동작을 유지합니다. 헤더 보조 문구와 개발용 2분 예약/S4 테스트 버튼은 제거했습니다.
 - 글꼴 저작권과 SIL OFL 1.1 원문을 내장하고 **글꼴 라이선스** 버튼으로 표시합니다. [출처와 해시](../src/WindowsAlarm/Assets/Fonts/README.md)를 기록했습니다.
 
-전원 API, 예약·복구, 오디오 출력·전환, 볼륨 처리와 자동 종료 판단 로직은 변경하지 않았습니다.
+최대 절전·정상 종료를 요청하는 API와 예약·복구, 오디오 출력·전환, 볼륨 처리, 자동 종료 판단 로직은 변경하지 않았습니다.
+
+## 토글과 전원 상태 안내
+
+볼륨 자동 설정과 자동 종료를 기본 WPF `ToggleButton` 기반 스위치로 표시합니다. 상태 문구·색상·손잡이 위치로 켜짐/꺼짐을 구분하며 키보드와 UI Automation Toggle 패턴을 유지합니다. 기존 JSON 설정 항목은 그대로 사용하고, 볼륨 자동 설정이 꺼지면 종료 후 볼륨 선택도 기존처럼 비활성화됩니다.
+
+전원 상태 모달은 읽기 전용 Win32 조회로 S4·전체 최대 절전 파일·AC/DC 복귀 타이머·RTC 지원 정보를 보여줍니다. 현재 사용하는 전원의 타이머를 기준으로 판단하며, 전원/배터리 두 설정을 함께 안내합니다. '중요한 타이머만', 빠른 시작 전용 파일, 조회 실패나 알려지지 않은 값은 준비 완료로 표시하지 않습니다. 펌웨어의 실제 복귀까지 검증했다는 뜻은 아닙니다.
+
+모달은 최대 절전 활성화 명령과 Wake Timer 설정 경로를 표시하고, 사용자 클릭으로 Windows 전원 옵션을 여는 기능과 새로고침을 제공합니다. 명령은 자동 실행하지 않으며 전원 계획·레지스트리·BIOS 설정도 바꾸지 않습니다.
+
+공식 자료: [전원 공급 상태](https://learn.microsoft.com/en-us/windows/win32/api/winbase/ns-winbase-system_power_status), [S4·RTC 지원 정보](https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-system_power_capabilities), [AC 설정 조회](https://learn.microsoft.com/en-us/windows/win32/api/powrprof/nf-powrprof-powerreadacvalueindex), [DC 설정 조회](https://learn.microsoft.com/en-us/windows/win32/api/powrprof/nf-powrprof-powerreaddcvalueindex), [최대 절전 설정 명령](https://learn.microsoft.com/en-us/windows-hardware/design/device-experiences/powercfg-command-line-options).
 
 ## 나눔스퀘어 가독성 조정
 
@@ -19,7 +29,7 @@
 
 | 용도 | 이전 | 조정 |
 | --- | --- | --- |
-| 본문·체크박스·상태 | 14 | 16 |
+| 본문·토글·상태 | 14 | 16 |
 | 필드 라벨 | 14 Bold | 15 Bold |
 | 입력값 | 14 | 15 |
 | 보조 설명 | 12 / 줄 높이 18 | 14 / 줄 높이 21 |
@@ -40,7 +50,7 @@ OTF의 내부 글꼴 이름은 `NanumSquareOTF`입니다. 글꼴 자체를 수�
 ## 검증
 
 - Release 빌드: 경고 0·오류 0.
-- 기존 기본 회귀 검증: 62개 통과·실패 0. 실제 WPF 창의 렌더링·설정 저장·정상 닫기와 종료 확인 창 닫기 시 취소 동작 포함.
+- 기본 회귀 검증: 66개 통과·실패 0. 실제 WPF 창의 렌더링·토글 Toggle 패턴과 저장·정상 닫기, 전원 조건의 AC/DC·부분 파일·조회 실패 분기, 전원 모달 새로고침과 실패 표시, 종료 확인 창 닫기 시 취소 동작 포함.
 - 실제 렌더링 이미지로 모서리, 글꼴, 입력창 높이와 하단 버튼 배치 확인.
 - 단일 EXE 진단: 4개 굵기의 실제 글꼴 파일 URI, 굵기, 한국어 글리프와 내장 라이선스 확인. 시스템 글꼴로 대체된 상태를 성공으로 처리하지 않습니다. 기존 WPF·Alerts API·실제 WebView2 연결 진단도 통과.
 - 최종 폴더형 실행본·단일 EXE·통합 설치 파일을 모두 갱신했습니다. 설치 파일 전용 검증 4개(동봉 패키지·버전 규칙, 런타임 정책, 설치용 앱 진단, 자기 작업만 제거하는 정리)도 통과했습니다. 실제 시스템 런타임 설치는 실행하지 않았습니다.
@@ -48,4 +58,4 @@ OTF의 내부 글꼴 이름은 `NanumSquareOTF`입니다. 글꼴 자체를 수�
 
 이번 UI 검증에서는 실제 S4 진입·복귀, 잠금 중 소리, 정상 Windows 종료를 실행하지 않았습니다. 해당 실기 결과는 [기존 검증 기록](VALIDATION.md)과 구분합니다.
 
-현재 UI 검증 이미지와 단일 EXE 진단은 Git에서 제외하는 `artifacts/ui-refresh`에 있습니다.
+현재 UI와 전원 모달 검증 이미지는 Git에서 제외하는 `artifacts/ui-controls-final`, 단일 EXE 진단은 `artifacts/ui-controls-review/single-file-check`에 있습니다. 이전 UI 검증은 `artifacts/ui-refresh`에 남깁니다.

@@ -45,6 +45,20 @@ internal static class DeploymentCheck
             if (!reader.ReadToEnd().Contains("SIL OPEN FONT LICENSE")) throw new InvalidOperationException("Invalid embedded font license.");
         }
         catch (Exception ex) { resources = false; errors.Add("Font resources: " + ex.Message); }
+        try
+        {
+            // Load the new compiled dialog from the actual published assembly, without showing it
+            // or querying/changing machine power settings during the packaging diagnostic.
+            var statusWindow = new PowerStatusWindow(() => new(null, null, null, null, []));
+            try
+            {
+                statusWindow.Measure(new Size(660, 800));
+                if (statusWindow.DataContext is not PowerReadinessReport { State: PowerCheckState.Unknown })
+                    throw new InvalidOperationException("Power status UI did not initialize.");
+            }
+            finally { statusWindow.Close(); }
+        }
+        catch (Exception ex) { resources = false; errors.Add("Power status UI: " + ex.Message); }
         var alerts = false;
         try
         {
