@@ -6,6 +6,15 @@ Windows 10/11용 개인 알람 프로그램입니다. **C# / .NET 10 LTS / WPF**
 
 ## 빌드와 실행
 
+일반 사용자용으로는 **`WindowsAlarm-Setup-win-x64.exe` 통합 오프라인 설치 파일**을 제공합니다. 앱과 별도로 .NET Desktop Runtime 10.0.14, WebView2 Runtime 설치 패키지를 함께 넣었으며 호환 버전이 이미 있으면 건너뜁니다. 설치 파일은 `artifacts\installer`에 생성됩니다. [설치·제거·검증 안내](docs/INSTALLER.md)를 참고하세요.
+
+```powershell
+.\build-installer.cmd
+.\test-installer.cmd
+```
+
+앱은 현재 사용자의 프로그램 폴더에 설치합니다. 필요한 .NET 시스템 런타임 설치 때만 관리자 승인을 요청하며, 앱 실행 자체는 일반 권한입니다. 설치 후 시작 메뉴의 **Windows Alarm**으로 실행합니다. 기본 최대 절전·Wake Timer 설정은 변경하지 않습니다.
+
 빌드 환경: Windows 10 2004(빌드 19041) 이상 또는 Windows 11, **.NET 10 SDK**. [공식 다운로드](https://dotnet.microsoft.com/en-us/download/dotnet/10.0)에서 설치합니다. `global.json`은 안정 버전 .NET 10 SDK만 선택하며, 설치된 10.0 SDK 중 최신 기능 밴드를 허용합니다.
 
 `publish-single.cmd`는 **Windows x64용 EXE 하나**를 만듭니다. .NET 10 런타임, WPF, WinRT와 WebView2 로더를 포함하므로 실행 PC에 .NET SDK나 Desktop Runtime을 따로 설치할 필요가 없습니다. 기존 폴더형 배포도 `publish.cmd`로 만들 수 있습니다. `dotnet run` 등 개발 실행에는 .NET 10 SDK/Desktop Runtime이 필요합니다.
