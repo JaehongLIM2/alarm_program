@@ -37,6 +37,6 @@
 
 실제 S4 진입/복귀, 잠금 화면의 MP3·YouTube 가청 출력, 실제 종료는 이번 작업에서 수행하지 않았습니다. 단일 EXE에서 실제 WebView2 연결이 통과한 결과는 오디오 출력 성공을 뜻하지 않습니다. 집 PC에서 알람 시간을 현재보다 2~3분 뒤로 설정하고 일반 최대 절전 버튼으로 다시 확인해야 합니다.
 
-검증 로그: `artifacts/single-file-build.txt`, `artifacts/single-file-publish.txt`, `artifacts/single-file-tests.txt`. EXE 단독 진단은 `artifacts/single-file-check/deployment-check.json`에 있습니다. 이 산출물은 Git에서 제외합니다.
+검증 로그: `artifacts/single-file-build.txt`, `artifacts/single-file-publish.txt`, `artifacts/single-file-tests.txt`를 보관합니다. 당시 EXE 단독 진단 경로는 `artifacts/single-file-check/deployment-check.json`이었으며, 2026-10-27 기본 산출물 정리 후 최신 진단은 `artifacts/about-review/single-file-check/deployment-check.json`에 남겼습니다. 과거 프로필과 중간 출력은 [정리 기록](CLEANUP_CANDIDATES.md)에 따라 제거했고, 이 산출물은 Git에서 제외합니다.
 
 공식 자료: [.NET 단일 파일 배포](https://learn.microsoft.com/en-us/dotnet/core/deploying/single-file/overview), [.NET 10 네이티브 라이브러리 탐색](https://learn.microsoft.com/en-us/dotnet/core/compatibility/interop/10.0/native-library-search), [WebView2 배포](https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/distribution).

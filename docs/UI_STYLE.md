@@ -68,4 +68,4 @@ OTF의 내부 글꼴 이름은 `NanumSquareOTF`입니다. 글꼴 자체를 수�
 
 이번 UI 검증에서는 실제 S4 진입·복귀, 잠금 중 소리, 정상 Windows 종료를 실행하지 않았습니다. 해당 실기 결과는 [기존 검증 기록](VALIDATION.md)과 구분합니다.
 
-현재 UI와 전원 모달 검증 이미지는 Git에서 제외하는 `artifacts/footer-layout-review`, 단일 EXE 진단은 같은 경로의 `single-file-check`에 있습니다. 이전 UI 검증은 `artifacts/ui-refresh`, `artifacts/ui-controls-final`에 남깁니다.
+현재 UI와 전원 모달 검증 이미지는 Git에서 제외하는 `artifacts/about-review`, 단일 EXE 진단은 같은 경로의 `single-file-check/deployment-check.json`에 있습니다. 대표 이전 화면은 `artifacts/ui-refresh/main-window.png`, `artifacts/footer-label-review/main-window.png`에 남깁니다. 기본 산출물 정리에서 나머지 과거 프로필·중간 결과를 제거했으며, 보관한 폰트 비교 자료와 정확한 정리 범위는 [정리 기록](CLEANUP_CANDIDATES.md)에 있습니다.
