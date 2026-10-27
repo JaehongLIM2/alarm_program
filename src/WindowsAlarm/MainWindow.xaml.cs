@@ -94,6 +94,24 @@ public partial class MainWindow : Window
         var path = Path.Combine(_store.Root, "logs"); Directory.CreateDirectory(path);
         Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
     });
+    private void FontLicense_Click(object sender, RoutedEventArgs e) => RunUi(() =>
+    {
+        var resource = Application.GetResourceStream(new Uri("pack://application:,,,/WindowsAlarm;component/Assets/Fonts/LICENSE.txt"))
+            ?? throw new InvalidOperationException("글꼴 라이선스를 읽을 수 없습니다.");
+        using var reader = new StreamReader(resource.Stream);
+        var text = new System.Windows.Controls.TextBox
+        {
+            Text = reader.ReadToEnd(), IsReadOnly = true, TextWrapping = TextWrapping.Wrap,
+            VerticalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Auto,
+            Margin = new Thickness(16), FontSize = 13
+        };
+        new Window
+        {
+            Title = "나눔스퀘어 · 글꼴 라이선스", Owner = this, Content = text,
+            Width = 640, Height = 520, MinWidth = 420, MinHeight = 320,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner
+        }.ShowDialog();
+    });
     private void PowerInfo_Click(object sender, RoutedEventArgs e) => RunUi(() =>
     {
         var info = new WindowsPowerService().GetDiagnostics(); _store.Log(info);

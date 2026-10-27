@@ -4,6 +4,12 @@ Windows 10/11용 개인 알람 프로그램입니다. **C# / .NET 10 LTS / WPF**
 
 알람 예약 → Windows 작업 스케줄러 Wake Timer 등록 → S4 최대 절전 → 예약 시각에 알람 → 선택한 시간 뒤 종료 확인 순서로 동작합니다. 기본 자동 종료 설정은 **사용 안 함**입니다.
 
+## 화면과 글꼴
+
+버튼·입력창은 10px, 설정 카드는 16px의 둥근 모서리를 사용합니다. 설정 저장·알람 테스트·최대 절전 버튼은 하단에 고정되어 있으며, 기존과 같이 알람 재생이나 종료 확인 중에는 설정 작업이 비활성화됩니다.
+
+제공된 나눔스퀘어(NanumSquare)의 Light·Regular·Bold·ExtraBold 글꼴을 앱 리소스에 포함합니다. Windows 글꼴 설치나 온라인 다운로드 없이 표시되며, 앱 하단 **글꼴 라이선스**에서 저작권·SIL OFL 1.1을 확인할 수 있습니다. [원본과 파일 해시](src/WindowsAlarm/Assets/Fonts/README.md)를 기록했습니다.
+
 ## 빌드와 실행
 
 일반 사용자용으로는 **`WindowsAlarm-Setup-win-x64.exe` 통합 오프라인 설치 파일**을 제공합니다. 앱과 별도로 .NET Desktop Runtime 10.0.14, WebView2 Runtime 설치 패키지를 함께 넣었으며 호환 버전이 이미 있으면 건너뜁니다. 설치 파일은 `artifacts\installer`에 생성됩니다. [설치·제거·검증 안내](docs/INSTALLER.md)를 참고하세요.

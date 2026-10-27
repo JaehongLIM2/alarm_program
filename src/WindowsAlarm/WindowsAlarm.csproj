@@ -12,6 +12,8 @@
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4191.47" />
     <EmbeddedResource Include="Assets/YouTubePlayer.html" />
     <EmbeddedResource Include="Assets/YouTubeAudioRelay.js" />
+    <Resource Include="Assets/Fonts/*.ttf" />
+    <Resource Include="Assets/Fonts/LICENSE.txt" />
     <InternalsVisibleTo Include="WindowsAlarm.Tests" />
   </ItemGroup>
 </Project>

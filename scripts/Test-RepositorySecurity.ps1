@@ -18,11 +18,25 @@ try {
         'literal credential assignment' = '(?im)^\s*(?:"|\x27)?(?:password|passwd|api[_-]?key|access[_-]?token|client[_-]?secret|connectionstring)(?:"|\x27)?\s*[:=]\s*(?:"|\x27)(?!\s*(?:"|\x27))[^"\x27\r\n]{8,}'
     }
     $findings = [System.Collections.Generic.List[string]]::new()
+    # Only these unmodified, OFL-licensed fonts from the supplied archive are permitted as binary source assets.
+    # Compare Git blob IDs for both working files and the exact index content used by a commit.
+    $approvedFontBlobs = @{
+        'src/WindowsAlarm/Assets/Fonts/NanumSquareR.ttf' = '956429775264cb9523b876fc6540a57b04c20e19'
+        'src/WindowsAlarm/Assets/Fonts/NanumSquareB.ttf' = '7711cac68c79b6366fe4f4591dec41040b15ae11'
+        'src/WindowsAlarm/Assets/Fonts/NanumSquareEB.ttf' = 'cb107b682499a6b3486e58dfe1a9f70a0920f78e'
+        'src/WindowsAlarm/Assets/Fonts/NanumSquareL.ttf' = '285681b8cc22b0614f0ae5fcdb91770f21e18102'
+    }
     foreach ($file in $files) {
         if ($file -match '[\r\n\t]' -or $file -match '(?i)(^|/)(?:artifacts|bin|obj|logs|webview2|webview2-check|youtube-content|\.ssh|\.aws|\.codex|\.agents)(/|$)' -or
             $file -match '(?i)(^|/)(?:\.env(?:\..*)?|\.git-identity\.local\.json|settings\.json|schedule\.json|deployment-check\.json)$' -or
             $file -match '(?i)\.(?:exe|dll|pdb|zip|7z|rar|pem|key|ppk|pfx|p12|snk|jks|keystore|gpg|asc|mp3|wav|log)$' -or $file -match '\.corrupt-') {
             $findings.Add('Sensitive or generated file: ' + $file); continue
+        }
+        if ($approvedFontBlobs.ContainsKey($file)) {
+            if ($Staged) { $fontBlob = & git rev-parse --verify (':' + $file) }
+            else { $fontBlob = & git hash-object --no-filters -- $file }
+            if ($LASTEXITCODE -ne 0 -or $fontBlob -cne $approvedFontBlobs[$file]) { $findings.Add('Unapproved font content: ' + $file) }
+            continue
         }
         if ($Staged) {
             $size = & git cat-file -s (':' + $file)

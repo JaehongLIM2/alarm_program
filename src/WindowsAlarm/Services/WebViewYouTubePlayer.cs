@@ -152,13 +152,15 @@ public sealed class WebViewYouTubePlayer : IYouTubeAlarmPlayer
         private bool _closing, _dismissed;
         public PlayerWindow(WebView2 view, Action stop, Window? owner)
         {
+            SetResourceReference(StyleProperty, "AppWindowStyle");
             Title = "YouTube 알람"; Width = 680; Height = 460; MinWidth = 520; MinHeight = 400;
             WindowStartupLocation = owner is null ? WindowStartupLocation.CenterScreen : WindowStartupLocation.CenterOwner;
             if (owner is { IsVisible: true }) Owner = owner;
             var panel = new DockPanel();
-            var controls = new StackPanel { Margin = new Thickness(12) };
+            var controls = new StackPanel { Margin = new Thickness(20) };
             controls.Children.Add(new TextBlock { Text = "재생이 확인되면 YouTube만 유지합니다. 확인 실패 시 이 플레이어를 종료하고 로컬 음악으로 전환합니다.", TextWrapping = TextWrapping.Wrap });
             var button = new Button { Content = "알람 정지", FontSize = 18, Margin = new Thickness(0, 8, 0, 0) };
+            button.SetResourceReference(StyleProperty, "StopButtonStyle");
             button.Click += (_, _) => stop(); controls.Children.Add(button);
             DockPanel.SetDock(controls, Dock.Bottom); panel.Children.Add(controls); panel.Children.Add(view); Content = panel;
             Closing += (_, _) => { _closing = true; if (!_dismissed) stop(); };

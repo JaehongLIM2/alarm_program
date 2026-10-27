@@ -26,6 +26,25 @@ internal static class DeploymentCheck
             using var resource = typeof(App).Assembly.GetManifestResourceStream("WindowsAlarm.Assets." + name);
             if (resource is null || resource.Length == 0) { resources = false; errors.Add("Missing embedded resource: " + name); }
         }
+        try
+        {
+            var font = Application.Current.TryFindResource("AppFontFamily") as System.Windows.Media.FontFamily
+                ?? throw new InvalidOperationException("Missing application font resource.");
+            foreach (var (name, weight) in new[] { ("NanumSquareL.ttf", FontWeights.Light), ("NanumSquareR.ttf", FontWeights.Normal),
+                ("NanumSquareB.ttf", FontWeights.Bold), ("NanumSquareEB.ttf", FontWeights.ExtraBold) })
+            {
+                var face = new System.Windows.Media.Typeface(font, FontStyles.Normal, weight, FontStretches.Normal);
+                if (!face.TryGetGlyphTypeface(out var glyph) || glyph.Weight != weight ||
+                    !glyph.FontUri.OriginalString.EndsWith("/" + name, StringComparison.OrdinalIgnoreCase) ||
+                    !glyph.CharacterToGlyphMap.ContainsKey('알'))
+                    throw new InvalidOperationException("Embedded NanumSquare font did not resolve: " + name);
+            }
+            var license = Application.GetResourceStream(new Uri("pack://application:,,,/WindowsAlarm;component/Assets/Fonts/LICENSE.txt"))
+                ?? throw new InvalidOperationException("Missing embedded font license.");
+            using var reader = new StreamReader(license.Stream);
+            if (!reader.ReadToEnd().Contains("SIL OPEN FONT LICENSE")) throw new InvalidOperationException("Invalid embedded font license.");
+        }
+        catch (Exception ex) { resources = false; errors.Add("Font resources: " + ex.Message); }
         var alerts = false;
         try
         {
