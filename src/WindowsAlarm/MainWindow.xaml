@@ -24,17 +24,17 @@
       </StackPanel>
     </Border>
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-      <StackPanel Margin="28">
-        <TextBlock Text="Windows Alarm" FontSize="30" FontWeight="Bold" />
-        <TextBlock Text="S4 최대 절전 · 로컬 백업 알람 · 안전한 자동 종료" Margin="0,6,0,24" Foreground="{StaticResource MutedBrush}" />
+      <StackPanel Margin="24">
+        <TextBlock Text="Windows Alarm" FontSize="28" FontWeight="Bold" />
+        <TextBlock Text="S4 최대 절전 · 로컬 백업 알람 · 안전한 자동 종료" Margin="0,8,0,20" Style="{StaticResource HelpTextStyle}" />
         <StackPanel x:Name="SettingsPanel">
           <Border Style="{StaticResource CardStyle}">
             <StackPanel>
               <TextBlock Text="알람 시간" Style="{StaticResource FieldLabelStyle}" />
               <StackPanel Orientation="Horizontal">
-                <ComboBox x:Name="HourBox" AutomationProperties.Name="알람 시" Width="102" FontSize="26" FontWeight="Normal" />
-                <TextBlock Text=":" FontSize="26" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" Margin="12,0" />
-                <ComboBox x:Name="MinuteBox" AutomationProperties.Name="알람 분" Width="102" FontSize="26" FontWeight="Normal" />
+                <ComboBox x:Name="HourBox" AutomationProperties.Name="알람 시" Width="102" FontSize="28" FontWeight="Bold" />
+                <TextBlock Text=":" FontSize="28" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" Margin="12,0" />
+                <ComboBox x:Name="MinuteBox" AutomationProperties.Name="알람 분" Width="102" FontSize="28" FontWeight="Bold" />
               </StackPanel>
             </StackPanel>
           </Border>
@@ -45,7 +45,7 @@
               <TextBox x:Name="YouTubeBox" AutomationProperties.Name="YouTube URL" />
               <TextBlock Text="내장 플레이어에서 재생을 확인합니다. 20초 내 확인 실패·오류 시 YouTube를 종료하고 로컬 음악으로 전환합니다."
                          Style="{StaticResource HelpTextStyle}" Margin="0,8,0,0" />
-              <TextBlock Text="로컬 백업 음악 (MP3)" Style="{StaticResource FieldLabelStyle}" Margin="0,22,0,10" />
+              <TextBlock Text="로컬 백업 음악 (MP3)" Style="{StaticResource FieldLabelStyle}" Margin="0,20,0,8" />
               <DockPanel>
                 <Button Content="찾아보기" DockPanel.Dock="Right" Click="Browse_Click" Margin="8,0,0,0" />
                 <TextBox x:Name="MusicBox" AutomationProperties.Name="로컬 MP3 파일 경로" />

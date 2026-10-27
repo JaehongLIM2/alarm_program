@@ -103,7 +103,7 @@ public partial class MainWindow : Window
         {
             Text = reader.ReadToEnd(), IsReadOnly = true, TextWrapping = TextWrapping.Wrap,
             VerticalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Auto,
-            Margin = new Thickness(16), FontSize = 13
+            Margin = new Thickness(16), FontSize = 14
         };
         new Window
         {

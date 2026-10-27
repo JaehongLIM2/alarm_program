@@ -2,37 +2,39 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
   <FontFamily x:Key="AppFontFamily">pack://application:,,,/WindowsAlarm;component/Assets/Fonts/#NanumSquare</FontFamily>
   <SolidColorBrush x:Key="TextBrush" Color="#18181B" />
-  <SolidColorBrush x:Key="MutedBrush" Color="#71717A" />
+  <SolidColorBrush x:Key="MutedBrush" Color="#62626A" />
   <SolidColorBrush x:Key="LineBrush" Color="#E4E4E7" />
   <SolidColorBrush x:Key="AccentBrush" Color="#2563EB" />
 
   <Style x:Key="AppWindowStyle" TargetType="Window">
     <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}" />
-    <Setter Property="FontSize" Value="14" />
+    <Setter Property="FontSize" Value="16" />
     <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
     <Setter Property="Background" Value="#FAFAFA" />
     <Setter Property="UseLayoutRounding" Value="True" />
-    <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
+    <Setter Property="TextOptions.TextFormattingMode" Value="Ideal" />
+    <Setter Property="TextOptions.TextRenderingMode" Value="Grayscale" />
   </Style>
   <Style TargetType="Window" BasedOn="{StaticResource AppWindowStyle}" />
   <Style TargetType="TextBlock"><Setter Property="TextWrapping" Value="Wrap" /></Style>
   <Style x:Key="HelpTextStyle" TargetType="TextBlock">
     <Setter Property="TextWrapping" Value="Wrap" />
     <Setter Property="Foreground" Value="{StaticResource MutedBrush}" />
-    <Setter Property="FontSize" Value="12" />
-    <Setter Property="LineHeight" Value="18" />
+    <Setter Property="FontSize" Value="14" />
+    <Setter Property="LineHeight" Value="21" />
   </Style>
   <Style x:Key="FieldLabelStyle" TargetType="TextBlock">
+    <Setter Property="FontSize" Value="15" />
     <Setter Property="FontWeight" Value="Bold" />
-    <Setter Property="Margin" Value="0,0,0,10" />
+    <Setter Property="Margin" Value="0,0,0,8" />
   </Style>
   <Style x:Key="CardStyle" TargetType="Border">
     <Setter Property="Background" Value="White" />
     <Setter Property="BorderBrush" Value="{StaticResource LineBrush}" />
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="CornerRadius" Value="16" />
-    <Setter Property="Padding" Value="22" />
-    <Setter Property="Margin" Value="0,0,0,16" />
+    <Setter Property="Padding" Value="20" />
+    <Setter Property="Margin" Value="0,0,0,14" />
   </Style>
   <Style x:Key="KeyboardFocusStyle" TargetType="Control">
     <Setter Property="Template">
@@ -51,8 +53,9 @@
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="Padding" Value="16,10" />
     <Setter Property="Margin" Value="0,4,8,4" />
-    <Setter Property="MinHeight" Value="42" />
-    <Setter Property="FontWeight" Value="Normal" />
+    <Setter Property="MinHeight" Value="44" />
+    <Setter Property="FontSize" Value="15" />
+    <Setter Property="FontWeight" Value="Bold" />
     <Setter Property="HorizontalContentAlignment" Value="Center" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
     <Setter Property="Cursor" Value="Hand" />
@@ -93,18 +96,21 @@
     </Style.Triggers>
   </Style>
   <Style x:Key="CompactButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-    <Setter Property="FontSize" Value="12" />
-    <Setter Property="MinHeight" Value="34" />
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="FontWeight" Value="Normal" />
+    <Setter Property="MinHeight" Value="36" />
+    <Setter Property="Margin" Value="0,3,6,3" />
     <Setter Property="Padding" Value="12,7" />
   </Style>
 
   <Style TargetType="TextBox">
+    <Setter Property="FontSize" Value="15" />
     <Setter Property="Background" Value="White" />
     <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
     <Setter Property="BorderBrush" Value="{StaticResource LineBrush}" />
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="Padding" Value="12,10" />
-    <Setter Property="MinHeight" Value="42" />
+    <Setter Property="MinHeight" Value="44" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
     <Setter Property="SelectionBrush" Value="#BFDBFE" />
     <Setter Property="Template">
@@ -146,12 +152,13 @@
   </Style>
   <!-- Read-only selectors retain the standard ComboBox keyboard and selection behavior. -->
   <Style TargetType="ComboBox">
+    <Setter Property="FontSize" Value="15" />
     <Setter Property="Background" Value="White" />
     <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
     <Setter Property="BorderBrush" Value="{StaticResource LineBrush}" />
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="Padding" Value="12,10" />
-    <Setter Property="MinHeight" Value="42" />
+    <Setter Property="MinHeight" Value="44" />
     <Setter Property="MinWidth" Value="76" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
     <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />

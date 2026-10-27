@@ -13,6 +13,24 @@
 
 전원 API, 예약·복구, 오디오 출력·전환, 볼륨 처리와 자동 종료 판단 로직은 변경하지 않았습니다.
 
+## 나눔스퀘어 가독성 조정
+
+글꼴 교체 후 이전의 작은 크기를 유지해 보조 설명이 가늘고 작게 보이던 부분을 조정했습니다. 아래 크기는 WPF의 DIP 값이며 pt 단위가 아닙니다.
+
+| 용도 | 이전 | 조정 |
+| --- | --- | --- |
+| 본문·체크박스·상태 | 14 | 16 |
+| 필드 라벨 | 14 Bold | 15 Bold |
+| 입력값 | 14 | 15 |
+| 보조 설명 | 12 / 줄 높이 18 | 14 / 줄 높이 21 |
+| 일반 버튼 | 14 Regular | 15 Bold |
+| 하단 보조 버튼 | 12 | 13 |
+| 제목 / 시·분 | 30 / 26 Regular | 28 Bold / 28 Bold |
+
+글자 크기에 맞춰 입력창과 일반 버튼의 최소 높이는 44로, 카드 안쪽 여백은 20으로 조정했습니다. 제목과 본문의 크기 차이도 줄였습니다.
+
+앱의 `TextFormattingMode`는 `Ideal`, `TextRenderingMode`는 `Grayscale`로 지정해 서브픽셀 색 번짐을 줄입니다. Windows의 전역 ClearType·디스플레이 배율·글꼴 설정은 변경하지 않습니다. [WPF 글꼴 크기 단위](https://learn.microsoft.com/en-us/dotnet/api/system.windows.documents.textelement.fontsize), [텍스트 렌더링 모드](https://learn.microsoft.com/en-us/dotnet/api/system.windows.media.textrenderingmode)
+
 ## 검증
 
 - Release 빌드: 경고 0·오류 0.
