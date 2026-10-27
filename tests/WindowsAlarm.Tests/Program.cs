@@ -18,10 +18,14 @@ internal static class Program
 {
     private static int _passed, _failed;
     private static string _root = "";
+    private static string? _publishedApp;
     private static readonly DateTimeOffset Now = new(2026, 10, 27, 7, 30, 0, TimeSpan.FromHours(9));
     [STAThread]
     private static int Main(string[] args)
     {
+        const string publishedPrefix = "--published-app=";
+        if (args.FirstOrDefault(a => a.StartsWith(publishedPrefix, StringComparison.Ordinal)) is { } published)
+            _publishedApp = Path.GetFullPath(published[publishedPrefix.Length..]);
         _root = Path.GetFullPath(args.FirstOrDefault(a => !a.StartsWith("--", StringComparison.Ordinal)) ?? Path.Combine("artifacts", "test-data", Guid.NewGuid().ToString("N")));
         Directory.CreateDirectory(_root);
         Run("alarm volume restores original level and mute; repeated stop is harmless", () =>
@@ -113,6 +117,39 @@ internal static class Program
             File.WriteAllText(Path.Combine(store.Root, "settings.json"), "{broken");
             Check(store.Load<AlarmSettings>("settings.json") is null);
             Check(Directory.GetFiles(store.Root, "*.corrupt-*").Length == preservedBefore + 1);
+        });
+        Run("NET8 JSON settings and armed schedule retain their values under NET10", () =>
+        {
+            // Frozen .NET 8 serializer shape: numeric enums, offset dates and null state fields.
+            const string legacySettings = """
+                {
+                  "Hour": 9, "Minute": 40,
+                  "YouTubeUrl": "https://youtu.be/M7lc1UVf-VE", "LocalMusicPath": "",
+                  "AutoShutdownEnabled": true, "ShutdownAfterMinutes": 45,
+                  "MaximizeWindowsVolume": true, "VolumeAfterStop": 1
+                }
+                """;
+            using var h = NewHarness();
+            File.WriteAllText(Path.Combine(h.Store.Root, "settings.json"), legacySettings);
+            var settings = h.Store.Load<AlarmSettings>("settings.json") ?? throw new InvalidOperationException("NET8 settings could not be read.");
+            Equal(9, settings.Hour); Equal(40, settings.Minute);
+            Check(settings.AutoShutdownEnabled); Equal(45, settings.ShutdownAfterMinutes);
+            Check(settings.MaximizeWindowsVolume); Equal(AlarmVolumeAfterStop.SetZero, settings.VolumeAfterStop);
+            var id = Guid.Parse("11111111-1111-1111-1111-111111111111");
+            File.WriteAllText(Path.Combine(h.Store.Root, "schedule.json"), $$"""
+                {
+                  "Id": "{{id}}", "DueAt": "2026-10-28T07:30:00+09:00",
+                  "Settings": {{legacySettings}}, "Phase": 0,
+                  "StartedAt": null, "ShutdownAt": null,
+                  "ShutdownCancelled": false, "IsTest": false
+                }
+                """);
+            h.Coordinator.Recover(Now);
+            Equal(id, h.Coordinator.Schedule?.Id); Equal(Now.AddDays(1), h.Coordinator.Schedule?.DueAt);
+            Equal(settings, h.Coordinator.Schedule?.Settings); Equal(AlarmPhase.Armed, h.Coordinator.Schedule?.Phase);
+            Check(h.Scheduler.Exists()); Check(!h.Coordinator.Shutdown.IsPending); Equal(0, h.Power.HibernateCalls);
+            Check(h.Store.LoadWarning is null);
+            h.Coordinator.CancelWake();
         });
         Run("idle countdown shuts down once after 60 seconds", () =>
         {
@@ -501,8 +538,8 @@ internal static class Program
         var store = new AppStore(Path.Combine(_root, "scheduler-process", Guid.NewGuid().ToString("N")));
         var schedule = new AlarmSchedule { DueAt = DateTimeOffset.Now.AddMinutes(15), IsTest = true, ShutdownCancelled = true };
         store.Save("schedule.json", schedule);
-        var scheduler = new TaskSchedulerWakeService(store.Root);
-        var expectedExe = Path.ChangeExtension(typeof(App).Assembly.Location, ".exe");
+        var expectedExe = _publishedApp ?? Path.ChangeExtension(typeof(App).Assembly.Location, ".exe");
+        var scheduler = new TaskSchedulerWakeService(store.Root, expectedExe);
         dynamic? service = null; dynamic? folder = null; dynamic? task = null;
         var childIds = new HashSet<int>();
         try

@@ -1,12 +1,14 @@
 # Windows Alarm
 
-Windows 10/11용 개인 알람 프로그램입니다. **C# / .NET 8 / WPF**를 사용합니다. 내장 YouTube 플레이어에 Microsoft 공식 `Microsoft.Web.WebView2` 패키지 하나를 사용하며, 별도 서버·웹앱·DB는 없습니다.
+Windows 10/11용 개인 알람 프로그램입니다. **C# / .NET 10 LTS / WPF**를 사용합니다. 내장 YouTube 플레이어에 Microsoft 공식 `Microsoft.Web.WebView2` 패키지 하나를 사용하며, 별도 서버·웹앱·DB는 없습니다.
 
 알람 예약 → Windows 작업 스케줄러 Wake Timer 등록 → S4 최대 절전 → 예약 시각에 알람 → 선택한 시간 뒤 종료 확인 순서로 동작합니다. 기본 자동 종료 설정은 **사용 안 함**입니다.
 
 ## 빌드와 실행
 
-필요 환경: Windows 10 2004(빌드 19041) 이상 또는 Windows 11, .NET 8 SDK. 실행만 하는 PC에는 **.NET 8 Desktop Runtime**이 필요합니다. [.NET 8 공식 다운로드](https://dotnet.microsoft.com/en-us/download/dotnet/8.0)에서 Windows Desktop Runtime을 설치할 수 있습니다.
+빌드 환경: Windows 10 2004(빌드 19041) 이상 또는 Windows 11, **.NET 10 SDK**. [공식 다운로드](https://dotnet.microsoft.com/en-us/download/dotnet/10.0)에서 설치합니다. `global.json`은 안정 버전 .NET 10 SDK만 선택하며, 설치된 10.0 SDK 중 최신 기능 밴드를 허용합니다.
+
+`publish.cmd`가 만드는 Windows x64 배포본에는 **.NET 10 런타임이 포함**됩니다. 실행만 하는 PC에는 .NET SDK나 Desktop Runtime을 따로 설치할 필요가 없습니다. `dotnet run` 또는 빌드 출력 폴더를 직접 사용하는 개발 실행에는 .NET 10 SDK/Desktop Runtime이 필요합니다.
 
 내장 YouTube 재생에는 **Microsoft Edge WebView2 Runtime**도 필요합니다. Runtime이 없거나 초기화에 실패하면 로컬 음악으로 전환합니다. [Microsoft WebView2 배포 안내](https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/distribution)를 참고하세요. 개인 브라우저의 로그인·쿠키를 가져오지 않는 앱 전용 프로필을 사용합니다.
 
@@ -19,7 +21,7 @@ Windows 10/11용 개인 알람 프로그램입니다. **C# / .NET 8 / WPF**를 �
 .\artifacts\app\WindowsAlarm.exe
 ```
 
-`build.cmd`는 솔루션 전체를 Release로 빌드하고, `publish.cmd`는 실행에 필요한 파일을 `artifacts\app`에 모읍니다. 다른 폴더/PC로 옮길 때는 **app 폴더 전체**를 복사하세요. 런타임을 포함하지 않는 배포입니다. 실행 파일만 따로 복사하면 동작하지 않습니다.
+`build.cmd`는 솔루션 전체를 Release로 빌드하고, `publish.cmd`는 .NET 런타임과 실행에 필요한 파일을 `artifacts\app`에 모읍니다. 다른 폴더/PC로 옮길 때는 **app 폴더 전체**를 복사하세요. 실행 파일만 따로 복사하면 동작하지 않습니다. 이 폴더의 `WindowsAlarm.exe` 또는 프로젝트 루트의 `start-alarm.cmd`로 실행합니다. 예약 뒤 실행 폴더를 옮겼다면 앱에서 다시 예약하세요.
 
 스크립트 없이도 사용할 수 있습니다.
 
@@ -27,12 +29,16 @@ Windows 10/11용 개인 알람 프로그램입니다. **C# / .NET 8 / WPF**를 �
 dotnet build WindowsAlarm.sln -c Release
 dotnet run --project src/WindowsAlarm
 dotnet run --project tests/WindowsAlarm.Tests -c Release
-dotnet publish src/WindowsAlarm -c Release --no-self-contained -o artifacts/app
+dotnet publish src/WindowsAlarm -c Release -r win-x64 --self-contained true -o artifacts/app -p:PublishSingleFile=false -p:PublishTrimmed=false -p:DebugSymbols=false -p:DebugType=None
 ```
 
-CMD 스크립트는 .NET 도구 캐시를 프로젝트의 `artifacts` 아래에 두므로 PowerShell 실행 정책을 변경할 필요가 없습니다. 첫 빌드에서는 NuGet.org에서 Microsoft WebView2 패키지와 Windows SDK 참조 팩을 복원합니다. `NuGet.Config`의 소스 매핑은 해당 Microsoft 패키지만 허용합니다. WebView2 버전과 콘텐츠 해시는 `packages.lock.json`으로 고정합니다. 패키지와 참조 팩이 캐시에 있으면 이후 오프라인 빌드도 가능합니다.
+CMD 스크립트는 .NET 도구 캐시를 프로젝트의 `artifacts` 아래에 두므로 PowerShell 실행 정책을 변경할 필요가 없습니다. `artifacts\dotnet10\dotnet.exe`가 있으면 해당 프로젝트 전용 SDK를 사용합니다. 그 외에는 설치된 SDK를 사용합니다. 전역 PATH와 기존 SDK 설치는 변경하지 않습니다.
+
+첫 빌드/배포에서는 NuGet.org에서 Microsoft WebView2 패키지, Windows SDK 참조 팩, Windows x64용 .NET 런타임 팩을 복원합니다. `NuGet.Config`의 소스 매핑은 필요한 Microsoft 패키지만 허용합니다. WebView2 버전과 콘텐츠 해시는 `packages.lock.json`으로 고정합니다. 의존성이 캐시에 있으면 이후 오프라인 빌드도 가능합니다. 자체 포함된 .NET의 보안 패치를 반영하려면 최신 .NET 10 SDK/런타임 팩으로 다시 배포해야 합니다.
 
 ## 사용 방법
+
+.NET 10 전환 범위와 실제 검증 결과는 [NET10_MIGRATION.md](docs/NET10_MIGRATION.md)에 있습니다.
 
 1. 시/분, YouTube URL(선택), 로컬 MP3(권장)를 설정합니다.
 2. 자동 종료를 원하면 체크하고 알람 시작 이후 몇 분인지 입력합니다. 범위는 1~1440분입니다.
@@ -204,6 +210,12 @@ JSON은 임시 파일에 flush한 뒤 교체합니다. 재생 시점에 저장�
 `--volume-integration`은 실제 기본 출력 장치에서 100 설정, 원래 볼륨·음소거 복원, 볼륨 0 및 음소거 해제를 검증합니다. 오디오를 재생하지 않으며 테스트 종료 시 기존 볼륨·음소거 상태로 복원합니다. 기본 테스트는 가짜 장치로 검증하여 Windows 볼륨을 변경하지 않습니다.
 
 `--scheduler-process-integration`은 고유한 테스트 프로필에 미래 예약을 만들고 실제 Windows 작업을 두 번 실행합니다. 실행기 종료 후 GUI 유지, 창을 닫은 뒤 예약 유지와 다음 실행의 상태 복구를 확인하고 임시 작업을 삭제합니다. 알람 재생·최대 절전·PC 종료는 수행하지 않습니다.
+
+시스템에 .NET 10이 없고 프로젝트 전용 SDK만 사용하는 환경에서는 먼저 `publish.cmd`를 실행한 뒤 아래처럼 자체 포함된 배포본을 지정해 예약 실행을 검증합니다. `--published-app`은 이 프로세스 통합 테스트의 실행 파일만 지정합니다.
+
+```powershell
+.\test.cmd --scheduler-process-integration --published-app=artifacts\app\WindowsAlarm.exe
+```
 
 수동 확인 순서:
 
