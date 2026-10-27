@@ -47,6 +47,7 @@
           <ContextMenu FontFamily="{StaticResource AppFontFamily}" FontSize="15" Padding="4"
                        TextOptions.TextFormattingMode="Ideal" TextOptions.TextRenderingMode="ClearType">
             <MenuItem Header="로그 폴더" Click="Logs_Click" Padding="12,8" />
+            <MenuItem Header="프로그램 정보" Click="About_Click" Padding="12,8" />
             <MenuItem Header="글꼴 라이선스" Click="FontLicense_Click" Padding="12,8" />
           </ContextMenu>
         </Button.ContextMenu>

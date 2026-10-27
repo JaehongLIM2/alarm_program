@@ -51,10 +51,13 @@ try {
         }
         if ($text.IndexOf([char]0) -ge 0) { $findings.Add('Binary file: ' + $file); continue }
         foreach ($rule in $rules.GetEnumerator()) {
-            $match = [regex]::Match($text, $rule.Value)
-            if ($match.Success) {
+            foreach ($match in [regex]::Matches($text, $rule.Value)) {
+                # Explicitly approved public contact; keep all other addresses and paths protected.
+                if ($rule.Key -eq 'personal email in source' -and $file -ceq 'src/WindowsAlarm/AppInfo.cs' -and
+                    $match.Value -cmatch '^nu0044[@]naver[.]com$') { continue }
                 $line = ($text.Substring(0, $match.Index) -split "`n").Count
                 $findings.Add($rule.Key + ': ' + $file + ':' + $line)
+                break
             }
         }
     }

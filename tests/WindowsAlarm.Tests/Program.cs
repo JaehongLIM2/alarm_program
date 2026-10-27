@@ -4,6 +4,7 @@ using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Documents;
 using System.Windows.Automation.Peers;
 using System.Windows.Automation.Provider;
 using System.Windows.Media;
@@ -547,7 +548,21 @@ internal static class Program
             var more = (Button)window.FindName("MoreButton");
             more.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             Check(more.ContextMenu.IsOpen); Equal(more, more.ContextMenu.PlacementTarget);
-            Equal(2, more.ContextMenu.Items.Count); more.ContextMenu.IsOpen = false;
+            Equal(3, more.ContextMenu.Items.Count);
+            Check(more.ContextMenu.Items.OfType<MenuItem>().Any(item => Equals(item.Header, "프로그램 정보")));
+            more.ContextMenu.IsOpen = false;
+            var about = new AboutWindow { Owner = window }; about.Show(); Pump(TimeSpan.FromMilliseconds(50));
+            var repositoryLink = (Hyperlink)about.FindName("RepositoryLink");
+            var contactLink = (Hyperlink)about.FindName("ContactLink");
+            Equal(AppInfo.RepositoryUri, repositoryLink.NavigateUri); Equal(AppInfo.ContactUri, contactLink.NavigateUri);
+            Equal(AppInfo.RepositoryUrl, new TextRange(repositoryLink.ContentStart, repositoryLink.ContentEnd).Text);
+            Equal(AppInfo.ContactEmail, new TextRange(contactLink.ContentStart, contactLink.ContentEnd).Text);
+            Check(FindVisuals<TextBlock>(about).Any(text => text.Text == "제작 · " + AppInfo.Author));
+            about.UpdateLayout();
+            var aboutImage = new RenderTargetBitmap((int)about.ActualWidth, (int)about.ActualHeight, 96, 96, PixelFormats.Pbgra32);
+            aboutImage.Render(about); var aboutEncoder = new PngBitmapEncoder(); aboutEncoder.Frames.Add(BitmapFrame.Create(aboutImage));
+            using (var output = File.Create(Path.Combine(_root, "about-window.png"))) aboutEncoder.Save(output);
+            about.Close();
 
             // Project fixture states into the real view without registering tasks or powering off.
             // Do not pump dispatcher timers while these view-only fixtures are applied.

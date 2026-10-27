@@ -118,6 +118,7 @@ public partial class MainWindow : Window
             WindowStartupLocation = WindowStartupLocation.CenterOwner
         }.ShowDialog();
     });
+    private void About_Click(object sender, RoutedEventArgs e) => RunUi(() => new AboutWindow { Owner = this }.ShowDialog());
     private void PowerInfo_Click(object sender, RoutedEventArgs e) => RunUi(() =>
     {
         var power = new WindowsPowerService();

@@ -59,6 +59,13 @@ internal static class DeploymentCheck
             finally { statusWindow.Close(); }
         }
         catch (Exception ex) { resources = false; errors.Add("Power status UI: " + ex.Message); }
+        try
+        {
+            var about = new AboutWindow();
+            try { about.Measure(new Size(560, 460)); }
+            finally { about.Close(); }
+        }
+        catch (Exception ex) { resources = false; errors.Add("About UI: " + ex.Message); }
         var alerts = false;
         try
         {
