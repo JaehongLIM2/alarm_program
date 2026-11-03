@@ -18,13 +18,14 @@ try {
         'literal credential assignment' = '(?im)^\s*(?:"|\x27)?(?:password|passwd|api[_-]?key|access[_-]?token|client[_-]?secret|connectionstring)(?:"|\x27)?\s*[:=]\s*(?:"|\x27)(?!\s*(?:"|\x27))[^"\x27\r\n]{8,}'
     }
     $findings = [System.Collections.Generic.List[string]]::new()
-    # Only these unmodified, OFL-licensed fonts from the supplied archive are permitted as binary source assets.
+    # Permit only the unmodified OFL fonts and the app icon produced by New-AppIcon.ps1.
     # Compare Git blob IDs for both working files and the exact index content used by a commit.
-    $approvedFontBlobs = @{
+    $approvedAssetBlobs = @{
         'src/WindowsAlarm/Assets/Fonts/NanumSquareR.otf' = '305829d6bb39851727b9c712ca30ae4f894b4363'
         'src/WindowsAlarm/Assets/Fonts/NanumSquareB.otf' = '944742a691e92ce739c975c3f807a68c7e77903d'
         'src/WindowsAlarm/Assets/Fonts/NanumSquareEB.otf' = '8fda57675c8b09c59435d7cf0137adf43ee93aef'
         'src/WindowsAlarm/Assets/Fonts/NanumSquareL.otf' = 'aa0f117ddc94e38aa1e16d01825a4596e6e0a9f1'
+        'src/WindowsAlarm/Assets/AlarmClock.ico' = '025aadd80dc2240e0a3aac4e3674a023288bdab1'
     }
     foreach ($file in $files) {
         if ($file -match '[\r\n\t]' -or $file -match '(?i)(^|/)(?:artifacts|bin|obj|logs|webview2|webview2-check|youtube-content|\.ssh|\.aws|\.codex|\.agents)(/|$)' -or
@@ -32,10 +33,10 @@ try {
             $file -match '(?i)\.(?:exe|dll|pdb|zip|7z|rar|pem|key|ppk|pfx|p12|snk|jks|keystore|gpg|asc|mp3|wav|log)$' -or $file -match '\.corrupt-') {
             $findings.Add('Sensitive or generated file: ' + $file); continue
         }
-        if ($approvedFontBlobs.ContainsKey($file)) {
-            if ($Staged) { $fontBlob = & git rev-parse --verify (':' + $file) }
-            else { $fontBlob = & git hash-object --no-filters -- $file }
-            if ($LASTEXITCODE -ne 0 -or $fontBlob -cne $approvedFontBlobs[$file]) { $findings.Add('Unapproved font content: ' + $file) }
+        if ($approvedAssetBlobs.ContainsKey($file)) {
+            if ($Staged) { $assetBlob = & git rev-parse --verify (':' + $file) }
+            else { $assetBlob = & git hash-object --no-filters -- $file }
+            if ($LASTEXITCODE -ne 0 -or $assetBlob -cne $approvedAssetBlobs[$file]) { $findings.Add('Unapproved asset content: ' + $file) }
             continue
         }
         if ($Staged) {

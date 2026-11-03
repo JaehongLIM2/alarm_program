@@ -84,6 +84,11 @@ public partial class MainWindow : Window
         catch (Exception ex) { _store.Log("UI operation failed", ex); StatusText.Text = ex.Message; MessageBox.Show(this, ex.Message, "Windows Alarm", MessageBoxButton.OK, MessageBoxImage.Warning); }
     }
     private void Save_Click(object sender, RoutedEventArgs e) => RunUi(() => { _store.Save("settings.json", ReadSettings()); StatusText.Text = "설정을 저장했습니다."; });
+    private void ClearYouTube_Click(object sender, RoutedEventArgs e)
+    {
+        YouTubeBox.Clear();
+        YouTubeBox.Focus();
+    }
     private void Browse_Click(object sender, RoutedEventArgs e)
     {
         var dialog = new OpenFileDialog { Filter = "MP3 음악|*.mp3", CheckFileExists = true };

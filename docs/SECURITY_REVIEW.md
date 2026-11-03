@@ -1,5 +1,7 @@
 # 커밋 전 개인정보·보안 점검
 
+2026-11-03 추가: 알람시계 아이콘은 `scripts/New-AppIcon.ps1`에서 생성한 `src/WindowsAlarm/Assets/AlarmClock.ico`의 정확한 Git blob `025aadd80dc2240e0a3aac4e3674a023288bdab1`만 바이너리 소스 예외로 허용합니다. 작업 파일과 실제 스테이징 내용 모두 해시를 비교하며, 다른 아이콘·임의 바이너리와 EXE는 허용하지 않습니다.
+
 대상 저장소: `JaehongLIM2/alarm_program`. 최근 점검일: 2026-10-27.
 
 ## 게시 대상 점검

@@ -70,7 +70,11 @@
           <Border Style="{StaticResource CardStyle}">
             <StackPanel>
               <TextBlock Text="YouTube URL (선택)" Style="{StaticResource FieldLabelStyle}" />
-              <TextBox x:Name="YouTubeBox" AutomationProperties.Name="YouTube URL" />
+              <DockPanel>
+                <Button Content="초기화" DockPanel.Dock="Right" Click="ClearYouTube_Click" Margin="8,0,0,0"
+                        AutomationProperties.Name="YouTube 링크 초기화" ToolTip="YouTube 링크 지우기" />
+                <TextBox x:Name="YouTubeBox" AutomationProperties.Name="YouTube URL" />
+              </DockPanel>
               <TextBlock Text="내장 플레이어에서 재생을 확인합니다. 20초 내 확인 실패·오류 시 YouTube를 종료하고 로컬 음악으로 전환합니다."
                          Style="{StaticResource HelpTextStyle}" Margin="0,8,0,0" />
               <TextBlock Text="로컬 백업 음악 (MP3)" Style="{StaticResource FieldLabelStyle}" Margin="0,20,0,8" />

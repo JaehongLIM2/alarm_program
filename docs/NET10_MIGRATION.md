@@ -54,6 +54,10 @@ Windows 작업 스케줄러는 프로젝트 전용 SDK 환경 변수를 상속�
 
 빌드/배포 로그는 `artifacts/net10-build.txt`, `artifacts/net10-publish.txt`, 최종 검증은 `artifacts/net10-final-tests.txt`, 비교 기록은 `artifacts/net8-baseline-tests.txt`에 있습니다. SDK, 배포본, ZIP, 로그, 테스트 프로필은 Git에서 제외합니다.
 
+## 폴더 배포 갱신 보완 (2026-10-27)
+
+`publish.cmd`는 `scripts/Publish-Folder.ps1`을 통해 매번 빈 staging 폴더에 배포한 뒤 `artifacts/app`을 교체합니다. 이전 배포본은 `artifacts/app-backup-*`에 보관합니다. 실행 중인 앱이 있으면 배포 전에 중단하며, 빌드 실패 시 기존 배포본을 유지합니다. .NET 8 배포 폴더에 덮어쓰면서 `PresentationNative_cor3.dll` 등 구버전 DLL이 남는 문제를 방지합니다.
+
 ## 공식 자료
 
 - [.NET 9 변경 사항](https://learn.microsoft.com/en-us/dotnet/core/compatibility/9.0), [.NET 10 변경 사항](https://learn.microsoft.com/en-us/dotnet/core/compatibility/10.0): WPF·직렬화·COM 및 배포 관련 항목 검토.

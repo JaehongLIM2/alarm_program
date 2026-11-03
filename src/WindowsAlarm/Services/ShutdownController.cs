@@ -34,6 +34,24 @@ public sealed class ShutdownController
         _log($"Automatic shutdown scheduled: {due:O}"); Changed?.Invoke();
     }
 
+    public void OnResumeOrSessionChange(DateTimeOffset now, bool powerResume)
+    {
+        if (!IsPending) return;
+        if (!powerResume)
+        {
+            // Preserve the reservation, but require confirmation at the due time after user/session activity.
+            _activitySeen = true;
+        }
+        else if (_lastTick is { } last && now >= last)
+        {
+            // Windows may deliver a late/repeated wake notification. Keep the due time and input history;
+            // allow a full response window if ticking stopped during an existing countdown.
+            if (now - last > TimeSpan.FromSeconds(15) && Deadline is not null) Deadline = now.AddSeconds(60);
+            // Backward clock changes still go through Tick's guard.
+            _lastTick = now;
+        }
+    }
+
     public void Tick(DateTimeOffset now)
     {
         if (!IsPending) return;

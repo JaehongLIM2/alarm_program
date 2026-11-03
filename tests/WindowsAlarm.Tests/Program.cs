@@ -415,15 +415,88 @@ internal static class Program
                 h.Coordinator.Tick(Now.AddSeconds(1));
             Equal(1, h.Playback.Starts);
         });
-        Run("resume notification cancels pending shutdown", () =>
+        Run("unlock and alarm stop preserve shutdown reservation and footer until explicit cancellation", () =>
         {
-            using var h = NewHarness(); h.Seed(DateTimeOffset.Now); h.Coordinator.Recover();
-            Check(h.Coordinator.Shutdown.IsPending); h.Coordinator.OnResumeOrSessionChange(); Check(!h.Coordinator.Shutdown.IsPending);
+            using var h = NewHarness(); h.Seed(Now); h.Coordinator.Recover(Now);
+            var due = h.Coordinator.Shutdown.DueAt;
+            h.Activity.Value = h.Activity.Value with { LastInputTick = 456, IdleTime = TimeSpan.Zero };
+            h.Coordinator.OnResumeOrSessionChange(currentTime: Now.AddSeconds(1));
+            h.Coordinator.StopAlarm();
+            Check(h.Coordinator.Shutdown.IsPending); Equal(due, h.Coordinator.Shutdown.DueAt);
+            Equal(AlarmPhase.Stopped, h.Coordinator.Schedule?.Phase);
+            var saved = h.Store.Load<AlarmSchedule>("schedule.json");
+            Check(saved?.ShutdownCancelled == false); Equal(due, saved?.ShutdownAt);
+            Check(ReservationStatus.Create(saved, h.Coordinator.Shutdown.Mode, due).ShutdownText is not null);
+            h.Coordinator.CancelShutdown(); Check(!h.Coordinator.Shutdown.IsPending);
+            Check(h.Store.Load<AlarmSchedule>("schedule.json")?.ShutdownCancelled == true);
+            Equal(0, h.Power.ShutdownCalls);
         });
-        Run("expected wake notification preserves newly started shutdown", () =>
+        Run("late and repeated wake notifications preserve the original shutdown time after alarm stop", () =>
         {
-            using var h = NewHarness(); h.Seed(DateTimeOffset.Now); h.Coordinator.Recover();
-            h.Coordinator.OnResumeOrSessionChange(powerResume: true); Check(h.Coordinator.Shutdown.IsPending);
+            using var h = NewHarness(); h.Seed(Now); h.Coordinator.Recover(Now);
+            var due = h.Coordinator.Shutdown.DueAt;
+            h.Coordinator.OnResumeOrSessionChange(powerResume: true, currentTime: Now);
+            h.Coordinator.StopAlarm();
+            h.Coordinator.OnResumeOrSessionChange(powerResume: true, currentTime: Now.AddMinutes(2));
+            h.Coordinator.OnResumeOrSessionChange(powerResume: true, currentTime: Now.AddMinutes(2).AddSeconds(1));
+            Check(h.Coordinator.Shutdown.IsPending); Equal(due, h.Coordinator.Shutdown.DueAt);
+            Check(h.Store.Load<AlarmSchedule>("schedule.json")?.ShutdownCancelled == false);
+            Equal(0, h.Power.ShutdownCalls);
+        });
+        Run("session change retains reservation until due time then requires confirmation", () =>
+        {
+            using var h = NewHarness(); h.Seed(Now); h.Coordinator.Recover(Now); h.Coordinator.StopAlarm();
+            var due = h.Coordinator.Shutdown.DueAt!.Value;
+            h.Coordinator.OnResumeOrSessionChange(currentTime: Now.AddSeconds(1));
+            for (var time = Now.AddSeconds(2); time <= due; time = time.AddSeconds(1)) h.Coordinator.Tick(time);
+            Equal(ShutdownMode.ActivityConfirmation, h.Coordinator.Shutdown.Mode);
+            Check(h.Coordinator.Schedule?.ShutdownCancelled == false); Equal(0, h.Power.ShutdownCalls);
+            for (var second = 1; second <= 60; second++) h.Coordinator.Tick(due.AddSeconds(second));
+            Equal(ShutdownMode.Cancelled, h.Coordinator.Shutdown.Mode); Equal(0, h.Power.ShutdownCalls);
+        });
+        Run("session change during countdown keeps cancellation available and never extends repeated confirmation", () =>
+        {
+            var (c, p, _) = NewShutdown(); c.Begin(Now, Now); c.Tick(Now);
+            c.OnResumeOrSessionChange(Now.AddSeconds(1), powerResume: false); c.Tick(Now.AddSeconds(1));
+            Equal(ShutdownMode.ActivityConfirmation, c.Mode); var deadline = c.Deadline;
+            c.OnResumeOrSessionChange(Now.AddSeconds(2), powerResume: false); c.Tick(Now.AddSeconds(2));
+            Equal(deadline, c.Deadline); Advance(c, Now.AddSeconds(2), 59);
+            Equal(ShutdownMode.Cancelled, c.Mode); Equal(0, p.ShutdownCalls);
+        });
+        Run("power resume keeps observed user activity and does not bypass backward clock protection", () =>
+        {
+            var (c, p, a) = NewShutdown(); c.Begin(Now.AddMinutes(2), Now);
+            a.Value = a.Value with { LastInputTick = 456 }; c.Tick(Now.AddSeconds(1));
+            c.OnResumeOrSessionChange(Now.AddMinutes(2), powerResume: true); c.Tick(Now.AddMinutes(2));
+            Equal(ShutdownMode.ActivityConfirmation, c.Mode); Equal(0, p.ShutdownCalls);
+            var (backward, power, _) = NewShutdown(); backward.Begin(Now.AddMinutes(2), Now);
+            backward.OnResumeOrSessionChange(Now.AddSeconds(-3), powerResume: true); backward.Tick(Now.AddSeconds(-3));
+            Equal(ShutdownMode.Cancelled, backward.Mode); Equal(0, power.ShutdownCalls);
+        });
+        Run("late power resume grants a full countdown window instead of shutting down immediately", () =>
+        {
+            foreach (var userActive in new[] { false, true })
+            {
+                var (c, p, a) = NewShutdown();
+                if (userActive) a.Value = a.Value with { IdleTime = TimeSpan.Zero };
+                c.Begin(Now, Now); c.Tick(Now);
+                var resumedAt = Now.AddMinutes(2);
+                c.OnResumeOrSessionChange(resumedAt, powerResume: true); c.Tick(resumedAt);
+                Equal(userActive ? ShutdownMode.ActivityConfirmation : ShutdownMode.Countdown, c.Mode);
+                Equal<DateTimeOffset?>(resumedAt.AddSeconds(60), c.Deadline); Equal(0, p.ShutdownCalls);
+                Advance(c, resumedAt, 59); Equal(0, p.ShutdownCalls);
+                c.Tick(resumedAt.AddSeconds(60));
+                Equal(userActive ? ShutdownMode.Cancelled : ShutdownMode.Requested, c.Mode);
+                Equal(userActive ? 0 : 1, p.ShutdownCalls);
+            }
+        });
+        Run("wake and session notifications never reenable explicitly cancelled shutdown", () =>
+        {
+            using var h = NewHarness(); h.Seed(Now); h.Coordinator.Recover(Now); h.Coordinator.CancelShutdown();
+            h.Coordinator.OnResumeOrSessionChange(powerResume: true, currentTime: Now.AddMinutes(2));
+            h.Coordinator.OnResumeOrSessionChange(currentTime: Now.AddMinutes(2).AddSeconds(1));
+            Check(!h.Coordinator.Shutdown.IsPending); Check(h.Coordinator.Schedule?.ShutdownCancelled == true);
+            Equal(0, h.Power.ShutdownCalls);
         });
         PlaybackTests();
         Run("generated emergency PCM WAV has valid length and samples", () =>

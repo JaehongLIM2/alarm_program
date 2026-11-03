@@ -184,12 +184,14 @@ public sealed class AlarmCoordinator : IDisposable
         Report(persisted ? "예약된 자동 종료를 취소했습니다." : "현재 실행의 자동 종료는 취소했지만 취소 상태를 저장하지 못했습니다. 앱을 닫기 전에 저장 경로를 확인하고 자동 종료 취소를 다시 누르세요.");
     }
 
-    public void OnResumeOrSessionChange(bool powerResume = false)
+    public void OnResumeOrSessionChange(bool powerResume = false, DateTimeOffset? currentTime = null)
     {
-        // Expected S4 wake notifications may arrive just after the first due tick. Do not cancel that new alarm's shutdown.
-        var justStarted = Schedule?.StartedAt is { } start && DateTimeOffset.Now - start < TimeSpan.FromSeconds(30);
-        if (Shutdown.IsPending && (!powerResume || !justStarted)) CancelShutdown("절전 복귀 또는 사용자 세션 변경");
-        _store.Log("Power resume/session change received"); Tick(DateTimeOffset.Now);
+        var now = currentTime ?? DateTimeOffset.Now;
+        // Unlocking to stop the alarm must not cancel the independent shutdown reservation.
+        Shutdown.OnResumeOrSessionChange(now, powerResume);
+        _store.Log(powerResume ? "Power resume received; shutdown reservation retained"
+            : "Session change received; shutdown reservation retained, user confirmation required if pending");
+        Tick(now);
     }
 
     private void OnShutdownChanged()

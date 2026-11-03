@@ -6,7 +6,7 @@ topics: ["windows", "csharp", "dotnet", "webview2", "個人開発"]
 published: false
 ---
 
-知人から「テレビの予約電源で朝起きている」という話を聞きました。
+知人の家に行ったとき、朝などの決まった時刻にテレビの電源が自動で入り、アラームのように使われているのを見ました。自宅にはテレビがないので、手元のPCで似た機能を作ってみようと思ったのが、この開発のきっかけです。
 
 私の家にはテレビがありませんが、PCはあります。普段のアラーム音で起きると、音が気になって朝から少し嫌な気分になることがあります。YouTubeの番組などが流れ始めて、それを聞きながら起きられたら、テレビの予約電源に近い使い方ができそうだと思いました。
 
@@ -20,7 +20,7 @@ published: false
 2026年10月27日時点の記録です。自宅で実際に起きられたのは.NET 8版で、その後.NET 10への移行と配布用EXE・インストーラーの作成を行いました。後者の実機検証には未完了の項目があります。また、YouTube音声の扱いには利用ポリシー上の確認事項が残っています。各項目は本文で区別します。
 :::
 
-ソースコードと検証記録は、[GitHubのリポジトリ](https://github.com/JaehongLIM2/alarm_program)に置いています。実装や調査、検証コードの整備には生成AIを利用しました。自分で設定した要求と、実機で観察した結果を基に、修正を繰り返したプロジェクトです。
+開発した[Windows Alarmのリポジトリ](https://github.com/JaehongLIM2/alarm_program)を公開しています。この記事で扱う再生処理は[ローカル音声](https://github.com/JaehongLIM2/alarm_program/blob/1ff34337d999f9e939473ffb579188672d88b961/src/WindowsAlarm/Services/LocalAlarmPlayer.cs)と[YouTube再生](https://github.com/JaehongLIM2/alarm_program/blob/1ff34337d999f9e939473ffb579188672d88b961/src/WindowsAlarm/Services/WebViewYouTubePlayer.cs)のコードで追えます。実装や調査、検証コードの整備には生成AIを利用しました。自分で設定した要求と、実機で観察した結果を基に、修正を繰り返したプロジェクトです。
 
 ## 作りたかった一晩の流れ
 

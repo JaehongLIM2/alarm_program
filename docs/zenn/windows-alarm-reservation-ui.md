@@ -16,7 +16,7 @@ published: false
 
 開発中のやり取りでも、これが次回のアラームを取り消す操作なのか、自動終了を取り消す操作なのかを確認し直しました。自分で作りたいと考えたアプリなのに、表示されている名前から動作をすぐに判断できていませんでした。
 
-今回は、ボタンの名前と配置を変えるところから、予約状態と取消操作の関係を見直した記録です。
+今回は、ボタンの名前と配置を変えるところから、予約状態と取消操作の関係を見直した記録です。[Windows Alarmのリポジトリ](https://github.com/JaehongLIM2/alarm_program)を公開しており、本文では[画面表示の判定](https://github.com/JaehongLIM2/alarm_program/blob/1ff34337d999f9e939473ffb579188672d88b961/src/WindowsAlarm/Services/ReservationStatus.cs)と[予約取消の処理](https://github.com/JaehongLIM2/alarm_program/blob/1ff34337d999f9e939473ffb579188672d88b961/src/WindowsAlarm/Services/AlarmCoordinator.cs)も参照できます。
 
 :::message
 2026年10月27日時点の記録です。画面の表示は韓国語のため、本文・図の操作名は日本語に置き換えています。実際の表示名は表に併記します。実装や検証コードの整備には生成AIを利用し、自分が使い方を確認した際の疑問や画面への違和感を基に修正しました。第三者を対象にしたユーザビリティ調査ではありません。

@@ -42,6 +42,14 @@ Source: "{#RepoRoot}\docs\*.md"; DestDir: "{app}\docs"; Flags: ignoreversion
 Source: "{#DependencyDir}\{#DotNetFile}"; Flags: dontcopy nocompression
 Source: "{#DependencyDir}\{#WebViewFile}"; Flags: dontcopy nocompression
 
+; Remove old app/runtime binaries before copying the framework-dependent payload.
+; No recursive deletion: settings, music, logs and subdirectories are preserved.
+[InstallDelete]
+Type: files; Name: "{app}\*.dll"
+Type: files; Name: "{app}\WindowsAlarm.exe"
+Type: files; Name: "{app}\WindowsAlarm.deps.json"
+Type: files; Name: "{app}\WindowsAlarm.runtimeconfig.json"
+
 [Icons]
 Name: "{userprograms}\Windows Alarm"; Filename: "{app}\WindowsAlarm.exe"; WorkingDir: "{app}"
 Name: "{userdesktop}\Windows Alarm"; Filename: "{app}\WindowsAlarm.exe"; WorkingDir: "{app}"; Tasks: desktopicon
