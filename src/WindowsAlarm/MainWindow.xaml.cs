@@ -19,11 +19,12 @@ public partial class MainWindow : Window
     private bool _closing;
     public MainWindow(AppStore store)
     {
+        Localization.Current.Load(store);
         InitializeComponent();
         Height = Math.Min(Height, SystemParameters.WorkArea.Height - 16);
         _store = store;
         _player = new AlarmPlaybackService(store, createYouTube: () => new WebViewYouTubePlayer(store, this));
-        _player.StatusChanged += message => AudioStatusText.Text = message;
+        _player.StatusChanged += message => Localization.SetText(AudioStatusText, message);
         _coordinator = new AlarmCoordinator(store, new TaskSchedulerWakeService(store.Root), new WindowsPowerService(), _player, new WindowsActivityMonitor());
         _player.StopRequested += _coordinator.StopAlarm;
         _coordinator.Changed += RefreshStatus;
@@ -50,7 +51,7 @@ public partial class MainWindow : Window
         VolumeAfterStopBox.SelectedIndex = settings.VolumeAfterStop == AlarmVolumeAfterStop.SetZero ? 1 : 0;
         ShutdownToggle.IsChecked = settings.AutoShutdownEnabled;
         ShutdownMinutesBox.Text = settings.ShutdownAfterMinutes.ToString();
-        StatusText.Text = _store.LoadWarning ?? "설정을 저장하고 알람을 테스트하세요.";
+        Localization.SetText(StatusText, _store.LoadWarning ?? "설정을 저장하고 알람을 테스트하세요.");
         Loaded += (_, _) => RunUi(() => { _coordinator.Recover(); _clock.Start(); });
         SystemEvents.PowerModeChanged += PowerChanged;
         SystemEvents.SessionSwitch += SessionChanged;
@@ -81,9 +82,10 @@ public partial class MainWindow : Window
     private void RunUi(Action action)
     {
         try { action(); }
-        catch (Exception ex) { _store.Log("UI operation failed", ex); StatusText.Text = ex.Message; MessageBox.Show(this, ex.Message, "Windows Alarm", MessageBoxButton.OK, MessageBoxImage.Warning); }
+        catch (Exception ex) { _store.Log("UI operation failed", ex); Localization.SetText(StatusText, ex.Message); MessageBox.Show(this, Localization.Current.Translate(ex.Message), "Windows Alarm", MessageBoxButton.OK, MessageBoxImage.Warning); }
     }
-    private void Save_Click(object sender, RoutedEventArgs e) => RunUi(() => { _store.Save("settings.json", ReadSettings()); StatusText.Text = "설정을 저장했습니다."; });
+    private void Language_Click(object sender, RoutedEventArgs e) => RunUi(() => Localization.Current.Toggle(_store));
+    private void Save_Click(object sender, RoutedEventArgs e) => RunUi(() => { _store.Save("settings.json", ReadSettings()); Localization.SetText(StatusText, "설정을 저장했습니다."); });
     private void ClearYouTube_Click(object sender, RoutedEventArgs e)
     {
         YouTubeBox.Clear();
@@ -91,7 +93,7 @@ public partial class MainWindow : Window
     }
     private void Browse_Click(object sender, RoutedEventArgs e)
     {
-        var dialog = new OpenFileDialog { Filter = "MP3 음악|*.mp3", CheckFileExists = true };
+        var dialog = new OpenFileDialog { Filter = Localization.Current.Translate("MP3 음악|*.mp3"), CheckFileExists = true };
         if (dialog.ShowDialog(this) == true) MusicBox.Text = dialog.FileName;
     }
     private void Logs_Click(object sender, RoutedEventArgs e) => RunUi(() =>
@@ -118,7 +120,7 @@ public partial class MainWindow : Window
         };
         new Window
         {
-            Title = "나눔스퀘어 · 글꼴 라이선스", Owner = this, Content = text,
+            Title = Localization.Current.Translate("나눔스퀘어 · 글꼴 라이선스"), Owner = this, Content = text,
             Width = 640, Height = 520, MinWidth = 420, MinHeight = 320,
             WindowStartupLocation = WindowStartupLocation.CenterOwner
         }.ShowDialog();
@@ -149,7 +151,7 @@ public partial class MainWindow : Window
         if (_closing) return;
         ApplyReservationStatus(ReservationStatus.Create(_coordinator.Schedule, _coordinator.Shutdown.Mode, _coordinator.Shutdown.DueAt,
             _coordinator.WakeCancellationNeedsRetry, _coordinator.ShutdownCancellationNeedsRetry));
-        StatusText.Text = _coordinator.Status;
+        Localization.SetText(StatusText, _coordinator.Status);
         AlarmPanel.Visibility = _coordinator.IsRinging ? Visibility.Visible : Visibility.Collapsed;
         SettingsPanel.IsEnabled = !_coordinator.IsRinging && !_coordinator.Shutdown.IsPending;
         if (_coordinator.Shutdown.Mode is ShutdownMode.Countdown or ShutdownMode.ActivityConfirmation)
@@ -165,11 +167,11 @@ public partial class MainWindow : Window
 
     internal void ApplyReservationStatus(ReservationStatus status)
     {
-        ScheduleText.Text = status.AlarmText;
+        Localization.SetText(ScheduleText, status.AlarmText);
         AlarmReservationRow.Visibility = status.AlarmText is null ? Visibility.Collapsed : Visibility.Visible;
-        ShutdownText.Text = status.ShutdownText;
+        Localization.SetText(ShutdownText, status.ShutdownText);
         ShutdownReservationRow.Visibility = status.ShutdownText is null ? Visibility.Collapsed : Visibility.Visible;
-        ShutdownOutcomeText.Text = status.ShutdownOutcome;
+        Localization.SetText(ShutdownOutcomeText, status.ShutdownOutcome);
         ShutdownOutcomeText.Visibility = status.ShutdownOutcome is null ? Visibility.Collapsed : Visibility.Visible;
     }
     private void PowerChanged(object sender, PowerModeChangedEventArgs e)

@@ -1,5 +1,5 @@
 <Window x:Class="WindowsAlarm.ShutdownWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="Windows Alarm · 종료 확인"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="clr-namespace:WindowsAlarm" Title="{local:Loc Key=59}"
         Width="560" Height="320" ResizeMode="NoResize" WindowStartupLocation="CenterScreen" Topmost="True"
         Style="{StaticResource AppWindowStyle}">
   <Border Style="{StaticResource CardStyle}" Margin="16" Padding="24">
@@ -7,8 +7,8 @@
     <TextBlock x:Name="MessageText" FontSize="22" FontWeight="Bold" />
     <TextBlock x:Name="DetailText" Margin="0,14,0,14" />
     <WrapPanel>
-      <Button x:Name="CancelButton" Content="자동 종료 취소" Style="{StaticResource PrimaryButtonStyle}" IsDefault="True" IsCancel="True" Click="Cancel_Click" />
-      <Button x:Name="ShutdownButton" Content="지금 종료" Click="Shutdown_Click" />
+      <Button x:Name="CancelButton" Content="{local:Loc Key=60}" Style="{StaticResource PrimaryButtonStyle}" IsDefault="True" IsCancel="True" Click="Cancel_Click" />
+      <Button x:Name="ShutdownButton" Content="{local:Loc Key=61}" Click="Shutdown_Click" />
     </WrapPanel>
   </StackPanel>
   </Border>

@@ -21,6 +21,7 @@ public partial class App : Application
             var root = dataIndex >= 0 ? e.Args[dataIndex + 1]
                 : System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WindowsAlarm");
             _store = new AppStore(root);
+            Localization.Current.Load(_store);
             if (e.Args.Contains("--deployment-check", StringComparer.Ordinal))
             {
                 // Explicit opt-in packaging check: no alarm recovery, scheduling, volume or power changes.
@@ -65,7 +66,7 @@ public partial class App : Application
                 _store.Log("Unhandled dispatcher exception", args.Exception);
                 if (MainWindow is MainWindow main) main.CancelForUnhandledError(args.Exception);
                 args.Handled = true;
-                MessageBox.Show("오류가 발생하여 자동 종료를 취소했습니다. 로그 폴더를 확인하세요.", "Windows Alarm", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(Localization.Current.Translate("오류가 발생하여 자동 종료를 취소했습니다. 로그 폴더를 확인하세요."), "Windows Alarm", MessageBoxButton.OK, MessageBoxImage.Error);
             };
             AppDomain.CurrentDomain.UnhandledException += (_, args) => _store.Log("Fatal exception: " + args.ExceptionObject);
             TaskScheduler.UnobservedTaskException += (_, args) => { _store.Log("Unobserved task error", args.Exception); args.SetObserved(); };
@@ -77,7 +78,7 @@ public partial class App : Application
         catch (Exception ex)
         {
             _store?.Log("Startup failed", ex);
-            MessageBox.Show("프로그램을 시작할 수 없습니다.\n" + ex.Message, "Windows Alarm", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(Localization.Current.Translate("프로그램을 시작할 수 없습니다.\n" + ex.Message), "Windows Alarm", MessageBoxButton.OK, MessageBoxImage.Error);
             Shutdown(1);
         }
     }

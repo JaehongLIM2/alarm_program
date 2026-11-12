@@ -10,7 +10,7 @@ public partial class AboutWindow : Window
     {
         InitializeComponent();
         Height = Math.Min(Height, SystemParameters.WorkArea.Height - 32);
-        DataContext = new { AppInfo.Author, AppInfo.RepositoryUrl, AppInfo.RepositoryUri, AppInfo.ContactEmail, AppInfo.ContactUri };
+        DataContext = new { AuthorLabel = "제작 · " + AppInfo.Author, AppInfo.RepositoryUrl, AppInfo.RepositoryUri, AppInfo.ContactEmail, AppInfo.ContactUri };
     }
 
     private void Link_RequestNavigate(object sender, RequestNavigateEventArgs e)
@@ -21,8 +21,8 @@ public partial class AboutWindow : Window
         try { Process.Start(new ProcessStartInfo(e.Uri.AbsoluteUri) { UseShellExecute = true }); }
         catch (Exception)
         {
-            MessageBox.Show(this, "연결된 앱을 열지 못했습니다. 아래 주소를 브라우저나 메일 앱에 직접 입력해 주세요.\n\n" + e.Uri.AbsoluteUri,
-                "링크 열기", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(this, Localization.Current.Translate("연결된 앱을 열지 못했습니다. 아래 주소를 브라우저나 메일 앱에 직접 입력해 주세요.\n\n" + e.Uri.AbsoluteUri),
+                Localization.Current.Translate("링크 열기"), MessageBoxButton.OK, MessageBoxImage.Information);
         }
     }
 

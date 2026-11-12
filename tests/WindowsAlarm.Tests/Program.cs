@@ -18,7 +18,7 @@ using ShutdownMode = WindowsAlarm.Services.ShutdownMode;
 
 namespace WindowsAlarm.Tests;
 
-internal static class Program
+internal static partial class Program
 {
     private static int _passed, _failed;
     private static string _root = "";
@@ -675,6 +675,7 @@ internal static class Program
             ((StackPanel)window.FindName("SettingsPanel")).IsEnabled = true;
             window.Close();
         });
+        RunLocalizationTests();
         if (args.Contains("--volume-integration")) Run("real Windows master volume boosts, restores and sets zero without mute", () =>
         {
             using var original = new WindowsVolumeEndpoint();

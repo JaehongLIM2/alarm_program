@@ -34,6 +34,6 @@ public partial class PowerStatusWindow : Window
             start.ArgumentList.Add("powercfg.cpl");
             Process.Start(start);
         }
-        catch (Exception ex) { MessageBox.Show(this, "전원 옵션을 열지 못했습니다. 제어판의 전원 옵션을 직접 열어 주세요.\n\n" + ex.Message, "전원 옵션"); }
+        catch (Exception ex) { MessageBox.Show(this, Localization.Current.Translate("전원 옵션을 열지 못했습니다. 제어판의 전원 옵션을 직접 열어 주세요.\n\n" + ex.Message), Localization.Current.Translate("전원 옵션")); }
     }
 }

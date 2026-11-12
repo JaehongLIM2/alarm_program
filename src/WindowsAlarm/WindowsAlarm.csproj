@@ -13,6 +13,7 @@
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4191.47" />
     <EmbeddedResource Include="Assets/YouTubePlayer.html" />
     <EmbeddedResource Include="Assets/YouTubeAudioRelay.js" />
+    <EmbeddedResource Include="Assets/Translations.tsv" />
     <Resource Include="Assets/Fonts/*.otf" />
     <Resource Include="Assets/Fonts/LICENSE.txt" />
     <Resource Include="Assets/AlarmClock.ico" />
