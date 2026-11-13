@@ -20,7 +20,11 @@ public sealed class Localization : INotifyPropertyChanged
     private readonly List<(Regex Pattern, string Translation)> _templates = [];
     public string Language { get; private set; } = "KR";
     public string SwitchLabel => Language == "JP" ? "JP → KR" : "KR → JP";
-    public FontFamily Font => new(Language == "JP" ? "Yu Gothic UI, Meiryo" : "pack://application:,,,/WindowsAlarm;component/Assets/Fonts/#NanumSquareOTF");
+    // Keep the pack URI separate: commas in a FontFamily string separate fallback families.
+    private static readonly FontFamily KoreanFont = new(
+        new Uri("pack://application:,,,/WindowsAlarm;component/Assets/Fonts/"), "./#NanumSquareOTF");
+    private static readonly FontFamily JapaneseFont = new("Yu Gothic UI, Meiryo");
+    public FontFamily Font => Language == "JP" ? JapaneseFont : KoreanFont;
     public event PropertyChangedEventHandler? PropertyChanged;
 
     private Localization()

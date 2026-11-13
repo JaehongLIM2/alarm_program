@@ -13,6 +13,22 @@ internal static partial class Program
 {
     private static void RunLocalizationTests()
     {
+        Run("Korean font resolves embedded faces before and after language switching", () =>
+        {
+            foreach (var language in new[] { "KR", "JP", "KR" })
+            {
+                Localization.Current.SetLanguage(language);
+                if (language != "KR") continue;
+                foreach (var weight in new[] { FontWeights.Light, FontWeights.Normal, FontWeights.Bold, FontWeights.ExtraBold })
+                {
+                    var face = new Typeface(Localization.Current.Font, FontStyles.Normal, weight, FontStretches.Normal);
+                    Check(face.TryGetGlyphTypeface(out var glyph), "Korean font could not resolve.");
+                    Check(glyph.FontUri.OriginalString.Contains("NanumSquare", StringComparison.OrdinalIgnoreCase), glyph.FontUri.ToString());
+                    Equal(weight, glyph.Weight);
+                    Check(glyph.CharacterToGlyphMap.ContainsKey('한'));
+                }
+            }
+        });
         Run("language button updates open views and preserves unsaved settings and reservation", () =>
         {
             var store = new AppStore(Path.Combine(_root, "language-ui"));
